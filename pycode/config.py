@@ -1,20 +1,20 @@
 from yacs.config import CfgNode as CN
+import os
 
 _C = CN()
 
-_C.POSE2IMAGE = True
 _C.GOAL_INPUT = False # TODO
 
 _C.STEP = 1 # 1 or 2
 _C.PRED_LEN = 3
-_C.IMAGE_PRED_LEN = 2 # invalid
 
 ###############################
 # BASIC #######################
 ###############################
+
 _C.BASIC = CN()
 _C.BASIC.DEVICE = 'cuda'
-_C.BASIC.OUTPUT_DIR = 'output'
+_C.BASIC.OUTPUT_DIR = '../output'
 _C.BASIC.SEED = 123
 _C.BASIC.MAX_EPOCH = 1000
 _C.BASIC.BATCH_SIZE = 8
@@ -32,11 +32,16 @@ _C.DATASET.DEPTH_AUGMENTATION = False
 
 # HMD
 _C.DATASET.HMD = CN()
-
-_C.DATASET.HMD.ACTION_CLASS = 'normal' #'normal', 'summary'
-
+_C.DATASET.HMD.PATH = os.path.abspath('../dataset/HMD')
+_C.DATASET.HMD.ACTION_CLASS = 'summary' #'normal', 'summary'
+_C.DATASET.HMD.TARGET_KEY = []
 _C.DATASET.HMD.FRAME_INTERVAL = 3
 _C.DATASET.HMD.RANDOM_LEN = 2  # random range -> FRAME_INTERVAL * RANDOM_LEN  
+
+# RLBench
+_C.DATASET.RLBENCH = CN()
+_C.DATASET.RLBENCH.PATH = os.path.abspath('../dataset/RLBench')
+_C.DATASET.RLBENCH.RANDOM_LEN = 3
 
 ###############################
 # AUGMENTATION ################
@@ -71,12 +76,12 @@ _C.AUGMENTATION.KNIFE_DROPOUT_MAX = 0 # 1
 
 # common #
 _C.OPTIM = CN()
-_C.OPTIM.GLR = 0.01
+_C.OPTIM.VPLR = 0.01
 _C.OPTIM.DLR = 0.01
-_C.OPTIM.PLR = 0.0001
-_C.OPTIM.GNAME = "adam" # adam, sgd, radam
+_C.OPTIM.MPLR = 0.0001
+_C.OPTIM.VPNAME = "radam" # adam, sgd, radam
 _C.OPTIM.DNAME = "sgd" # adam, sgd, radam
-_C.OPTIM.PNAME = "radam" # adam, sgd, radam
+_C.OPTIM.MPNAME = "radam" # adam, sgd, radam
 
 # sgd
 _C.OPTIM.SGD = CN()
@@ -108,7 +113,7 @@ _C.SCHEDULER = CN()
 
 # stepLR #
 _C.SCHEDULER.STEPLR = CN()
-_C.SCHEDULER.STEPLR.STEP_SIZE = 1000
+_C.SCHEDULER.STEPLR.STEP_SIZE = 30000
 _C.SCHEDULER.STEPLR.GAMMA = 0.1
 
 ###############################
@@ -164,64 +169,33 @@ _C.LOSS.CVAE.GAN_LOSS_WEIGHT = 1.
 
 # rgb los
 _C.LOSS.RGB = False
+
+# argmax loss
+_C.LOSS.ARGMAX = CN()
+_C.LOSS.ARGMAX.WEIGHT = 1.0
+
+# pose loss
+_C.LOSS.POSE = CN()
+_C.LOSS.POSE.WEIGHT = 1.0
+
+# rotation loss
+_C.LOSS.ROTATION = CN()
+_C.LOSS.ROTATION.WEIGHT = 10.0
+
+# grasp loss
+_C.LOSS.GRASP = CN()
+_C.LOSS.GRASP.WEIGHT = 1.0
+
 ###############################
 # MODEL #######################
 ###############################
 
-_C.MODEL_NAME = 'FRGAN'
-_C.MODEL = CN()
+_C.MP_MODEL_NAME = 'hourglass' # hourglass, sequence_hourglass
+
 _C.PRED_NAME = 'cvae1'
 _C.C_DISC = False # conditional discriminator
 _C.LOAD_MODEL = 'all' # all, model_only
-_C.USE_DEPTH = True
-
-##### FRGAN #####
-_C.MODEL.FRGAN = CN()
-_C.MODEL.FRGAN_C = CN()
-
-# FRGAN GEN #
-_C.MODEL.FRGAN.GEN = CN()
-_C.MODEL.FRGAN.GEN.H_DIM = 64
-_C.MODEL.FRGAN.GEN.FILTER_SIZE = 3
-_C.MODEL.FRGAN.GEN.MIN_FILTER_NUM = 64
-_C.MODEL.FRGAN.GEN.MAX_FILETER_NUM = 256
-
-_C.MODEL.FRGAN.GEN.LAST_ACTIVATION = 'none' # tanh relu
-_C.MODEL.FRGAN.GEN.LAST_LAYER = 'heatmap' # normal, residual, heatmap
-_C.MODEL.FRGAN.GEN.DEFORMABLE = False
-
-# FRGAN DIS #
-_C.MODEL.FRGAN.DIS = CN()
-_C.MODEL.FRGAN.DIS.FILTER_SIZE = 3
-_C.MODEL.FRGAN.DIS.MIN_FILTER_NUM = 64
-_C.MODEL.FRGAN.DIS.MAX_FILETER_NUM = 256
-
-# FRGAN_C GEN #
-_C.MODEL.FRGAN_C.GEN = CN()
-_C.MODEL.FRGAN_C.GEN.H_DIM = 64
-_C.MODEL.FRGAN_C.GEN.FILTER_SIZE = 3
-_C.MODEL.FRGAN_C.GEN.MIN_FILTER_NUM = 64
-_C.MODEL.FRGAN_C.GEN.MAX_FILETER_NUM = 256
-
-_C.MODEL.FRGAN_C.GEN.LAST_ACTIVATION = 'none' # tanh relu
-_C.MODEL.FRGAN_C.GEN.LAST_LAYER = 'heatmap' # normal, residual, heatmap
-_C.MODEL.FRGAN_C.GEN.DEFORMABLE = False
-_C.MODEL.FRGAN_C.GEN.INPUT_MODE = 'future' # 'future'=(past, current, future), 'past'=(past,current), 'current'
-
-##### VR_MP #####
-
-_C.VR_MP = CN()
-
-_C.VR_MP.SOFT_ARGMAX = False
-_C.VR_MP.ACTIVATION = 'relu'
-_C.VR_MP.NORM = 'none'
-
-##### ASA_MP #####
-
-_C.ASA_MP = CN()
-
-_C.ASA_MP.ACTIVATION = 'relu'
-_C.ASA_MP.NORM = 'none'
+_C.USE_DEPTH = False
 
 ##### CVAE1 #####
 
@@ -239,7 +213,7 @@ _C.CVAE1.Z_DECODER = True
 _C.CVAE1.WITHOUT_Z = False
 
 _C.CVAE1.USE_RGB = True
-_C.CVAE1.USE_DEPTH = True
+_C.CVAE1.USE_DEPTH = False
 _C.CVAE1.USE_POSE_IMAGE = True
 _C.CVAE1.USE_ACTION = False
 
@@ -249,10 +223,14 @@ _C.HOURGLASS = CN()
 
 _C.HOURGLASS.NUM_BLOCK = 4
 _C.HOURGLASS.NUM_DOWNSCALE = 4
-_C.HOURGLASS.INTERMEDIATE_LOSS = True
 _C.HOURGLASS.ACTIVATION = 'relu'
 _C.HOURGLASS.NORM = 'none'
 _C.HOURGLASS.BASE_FILTER = 256
+
+# option
+_C.HOURGLASS.INTERMEDIATE_LOSS = True
+_C.HOURGLASS.ARGMAX = 'softargmax' # softargmax, SigmoidArgmax2D
+_C.HOURGLASS.SINGLE_DEPTH = False
 
 # input
 _C.HOURGLASS.INPUT_POSE = True
@@ -271,12 +249,13 @@ _C.HOURGLASS.PRED_GRASP = False
 ##### VIDEO_HOURGLASS #####
 _C.VIDEO_HOUR = CN()
 
-_C.VIDEO_HOUR.TRAIN = False
+_C.VIDEO_HOUR.TRAIN = False # TODO
 _C.VIDEO_HOUR.MODE = 'pcf' #'pcf', 'pc', 'c'
 _C.VIDEO_HOUR.DEPTH = False
 _C.VIDEO_HOUR.LAST_LAYER = 'normal' # normal, residual, heatmap
 _C.VIDEO_HOUR.MIN_FILTER_NUM = 64
 _C.VIDEO_HOUR.MAX_FILTER_NUM = 256
+_C.VIDEO_HOUR.NUM_DOWN = 4
 
 ##### sequence_hourglass #####
 _C.SEQUENCE_HOUR =CN()

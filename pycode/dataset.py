@@ -22,7 +22,6 @@ if float(python_version[:3]) > 3.6:
 else:
     print('kornia requires version >= 3.6. your version {}'.format(float(python_version[:3])))
 
-
 class imageaug_full_transform(object):
 
     def __init__(self, cfg):
@@ -240,16 +239,17 @@ class Dataset_Template(torch.utils.data.Dataset):
 
 class Softargmax_dataset(Dataset_Template):
 
-    def __init__(self,data_root_dir,cfg,target_key='default',save_dataset=False,mode='train'):
+    def __init__(self,cfg,save_dataset=False,mode='train'):
         """
         output: image_t,posture_t,image_t+1,posture_t+1
         
         # variable
         data_root_dir: path to root directory of data
-        target_key: key of data in motive csv data. (e.g. hand)
         img_trans: transform(torch.transform) list
         seed: seed for data augmentation
         """
+        data_root_dir = cfg.DATASET.HMD.PATH
+
         self.get_future_image = True
         self.use_future_past_frame = True
         self.skip_until_move = True
@@ -274,13 +274,11 @@ class Softargmax_dataset(Dataset_Template):
         self.pred_len = cfg.PRED_LEN
         print('length of future is {} frame'.format(self.pred_len))
         
-        if target_key == 'default':
+        if len(cfg.DATASET.HMD.TARGET_KEY) == 0:
             self.target_key = self.add_serial_data([], "hand", 1, 15, False, True)
             self.target_key = self.add_serial_data(self.target_key, "knife", 1 ,6, True)
         else:
-            self.target_key = target_key
-        
-        self.get_pos_image = cfg.POSE2IMAGE
+            self.target_key = cfg.DATASET.HMD.TARGET_KEY
 
         # divide dataset
         train_list, val_list, _ = train_val_split(data_root_dir, 2)
@@ -567,7 +565,7 @@ class Softargmax_dataset(Dataset_Template):
 
 class Softargmax_dataset_VP(Softargmax_dataset):
 
-    def __init__(self,data_root_dir,cfg,target_key='default',save_dataset=False,mode='train'):
+    def __init__(self,cfg,save_dataset=False,mode='train'):
         """
         output: image_t,posture_t,image_t+1,posture_t+1
         
@@ -577,6 +575,8 @@ class Softargmax_dataset_VP(Softargmax_dataset):
         img_trans: transform(torch.transform) list
         seed: seed for data augmentation
         """
+        data_root_dir = cfg.DATASET.HMD.PATH
+
         self.get_future_image = True
         self.use_future_past_frame = True
         self.skip_until_move = True
@@ -602,13 +602,12 @@ class Softargmax_dataset_VP(Softargmax_dataset):
         self.pred_len = 1
         print('length of future is {} frame'.format(self.pred_len))
         
-        if target_key == 'default':
+        if len(cfg.DATASET.HMD.TARGET_KEY) == 0:
             self.target_key = self.add_serial_data([], "hand", 1, 15, False, True)
             self.target_key = self.add_serial_data(self.target_key, "knife", 1 ,6, True)
         else:
-            self.target_key = target_key
+            self.target_key = cfg.DATASET.HMD.TARGET_KEY
         
-        self.get_pos_image = cfg.POSE2IMAGE
         self.class_setting = cfg.DATASET.HMD.ACTION_CLASS
 
         # divide dataset
@@ -821,7 +820,9 @@ class Softargmax_dataset_VP(Softargmax_dataset):
 
 class Softargmax_dataset_test(Softargmax_dataset):
 
-    def __init__(self,data_root_dir,cfg,target_key='default',save_dataset=False,mode='test'):
+    def __init__(self,cfg,save_dataset=False,mode='test'):
+        data_root_dir = cfg.DATASET.HMD.PATH
+
         self.get_future_image = True
         self.use_future_past_frame = True
         self.skip_until_move = True
@@ -836,13 +837,12 @@ class Softargmax_dataset_test(Softargmax_dataset):
         self.frame_interval = cfg.DATASET.HMD.FRAME_INTERVAL
         print('length of future is {} frame'.format(1))
         
-        if target_key == 'default':
+        if len(cfg.DATASET.HMD.TARGET_KEY) == 0:
             self.target_key = self.add_serial_data([], "hand", 1, 15, False, True)
             self.target_key = self.add_serial_data(self.target_key, "knife", 1 ,6, True)
         else:
-            self.target_key = target_key
+            self.target_key = cfg.DATASET.HMD.TARGET_KEY
         
-        self.get_pos_image = cfg.POSE2IMAGE
         self.class_setting = cfg.DATASET.HMD.ACTION_CLASS
 
         # divide dataset
@@ -969,7 +969,7 @@ class Softargmax_dataset_test(Softargmax_dataset):
 
 class RLBench_dataset(Dataset_Template):
 
-    def __init__(self,data_root_dir,cfg,pred_len=1,mode='train'):
+    def __init__(self,cfg,save_dataset=False,mode='train'):
         """
         output: image_t,posture_t,image_t+1,posture_t+1
         
@@ -979,6 +979,8 @@ class RLBench_dataset(Dataset_Template):
         img_trans: transform(torch.transform) list
         seed: seed for data augmentation
         """
+        data_root_dir = os.path.join(cfg.DATASET.RLBENCH.PATH, mode)
+
         self.data_list = None
         self.index_list = None
         self.sequence_index_list = None
@@ -1001,17 +1003,9 @@ class RLBench_dataset(Dataset_Template):
         print('length of future is {} frame'.format(self.pred_len))
         
         self.seed = 0
-        self.get_pos_image = cfg.POSE2IMAGE
-        
-        '''
-        change here
-        1. check the json path
-        2. if there is no path, make and save json file
-        3. else, load json data
-        '''
         
         self._json_file_name = 'RL_Becnh_dataset_{}_{}.json'.format(mode,self.pred_len)
-        if self._json_file_name not in os.listdir(data_root_dir):
+        if (self._json_file_name not in os.listdir(data_root_dir)) or save_dataset:
             # create dataset
             print('There is no json data')
             print('create json data')
@@ -1221,7 +1215,7 @@ class RLBench_dataset(Dataset_Template):
 
 class RLBench_dataset_VP(RLBench_dataset):
 
-    def __init__(self,data_root_dir,cfg,mode='train',random_len=3):
+    def __init__(self,cfg,save_dataset=False,mode='train'):
         """
         output: image_t,posture_t,image_t+1,posture_t+1
         
@@ -1231,6 +1225,8 @@ class RLBench_dataset_VP(RLBench_dataset):
         img_trans: transform(torch.transform) list
         seed: seed for data augmentation
         """
+        data_root_dir = os.path.join(cfg.DATASET.RLBENCH.PATH, mode)
+
         self.data_list = None
         self.index_list = None
         self.sequence_index_list = None
@@ -1254,18 +1250,10 @@ class RLBench_dataset_VP(RLBench_dataset):
         print('length of future is {} frame'.format(self.pred_len))
         
         self.seed = 0
-        self.random_len = random_len
-        self.get_pos_image = cfg.POSE2IMAGE
-        
-        '''
-        change here
-        1. check the json path
-        2. if there is no path, make and save json file
-        3. else, load json data
-        '''
+        self.random_len = cfg.DATASET.RLBENCH.RANDOM_LEN 
         
         self._json_file_name = 'RL_Becnh_dataset_VP_{}_{}.json'.format(mode,self.pred_len)
-        if self._json_file_name not in os.listdir(data_root_dir):
+        if (self._json_file_name not in os.listdir(data_root_dir)) or save_dataset:
             # create dataset
             print('There is no json data')
             print('create json data')
@@ -1436,7 +1424,7 @@ class RLBench_dataset_VP(RLBench_dataset):
 
 class RLBench_dataset_test(RLBench_dataset):
 
-    def __init__(self,data_root_dir,cfg,mode='test'):
+    def __init__(self,cfg,save_dataset=False,mode='test'):
         """
         output: image_t,posture_t,image_t+1,posture_t+1
         
@@ -1446,31 +1434,24 @@ class RLBench_dataset_test(RLBench_dataset):
         img_trans: transform(torch.transform) list
         seed: seed for data augmentation
         """
+        data_root_dir = os.path.join(cfg.DATASET.RLBENCH.PATH, mode)
+
         self.data_list = None
         self.index_list = None
         self.sequence_index_list = None
         self.size = None
         self.numpose = None # the number of key point
         self.img_trans = None
+        self.depth_trans = None
 
         self.root_dir = data_root_dir
-        
         self.pred_len = 1
         print('length of future is {} frame'.format(self.pred_len))
         
         self.seed = 0
         
-        self.get_pos_image = cfg.POSE2IMAGE
-        self.class_setting = cfg.DATASET.ACTION_CLASS
-        '''
-        change here
-        1. check the json path
-        2. if there is no path, make and save json file
-        3. else, load json data
-        '''
-        
         self._json_file_name = 'RL_Becnh_dataset_Test_{}_{}.json'.format(mode,self.pred_len)
-        if self._json_file_name not in os.listdir(data_root_dir):
+        if (self._json_file_name not in os.listdir(data_root_dir)) or save_dataset:
             # create dataset
             print('There is no json data')
             print('create json data')
