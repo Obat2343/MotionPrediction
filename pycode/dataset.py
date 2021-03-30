@@ -1197,7 +1197,7 @@ class RLBench_dataset(Dataset_Template):
         gripper_pose_CamCor = np.dot(camera2world_matrix, gripper_pos_WorldCor)
         gripper_matrix_CamCor = np.dot(camera2world_matrix, gripper_matrix_WorldCor)
         
-        return torch.tensor(gripper_pose_CamCor[:3]), torch.tensor(gripper_matrix_CamCor[:3,:3]), torch.tensor(gripper_open)
+        return torch.tensor(gripper_pose_CamCor[:3], dtype=torch.float), torch.tensor(gripper_matrix_CamCor[:3,:3], dtype=torch.float), torch.tensor(gripper_open, dtype=torch.float)
     
     def get_uv(self, pos_data, intrinsic_matrix):
         # transfer position data(based on motive coordinate) to camera coordinate
@@ -1434,7 +1434,7 @@ class RLBench_dataset_test(RLBench_dataset):
         img_trans: transform(torch.transform) list
         seed: seed for data augmentation
         """
-        data_root_dir = os.path.join(cfg.DATASET.RLBENCH.PATH, mode)
+        data_root_dir = os.path.join(cfg.DATASET.RLBENCH.PATH, 'val')
 
         self.data_list = None
         self.index_list = None

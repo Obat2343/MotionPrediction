@@ -1,10 +1,10 @@
-MP_MODEL_NAME: 'sequence_hourglass' # hourglass, sequence_hourglass
-PRED_LEN: 4
+MP_MODEL_NAME: 'hourglass' # hourglass, sequence_hourglass
+PRED_LEN: 1
 DATASET:
   NAME: 'RLBench' # HMD, RLBench
 BASIC:
-  NUM_GPU: 2
-  BATCH_SIZE: 2
+  NUM_GPU: 1
+  BATCH_SIZE: 3
 LOAD_MODEL: 'all'
 HOURGLASS:
   NUM_BLOCK: 2
@@ -20,3 +20,8 @@ VIDEO_HOUR:
   MODE: 'pcf'
 SEQUENCE_HOUR:
   MODE: 2
+LOSS:
+  POSE:
+    WEIGHT: 10.0
+  ARGMAX:
+    WEIGHT: 1.0

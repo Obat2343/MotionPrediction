@@ -30,8 +30,11 @@ parser.add_argument('--output_dirname', type=str, default='', help='')
 parser.add_argument('--checkpoint_path', type=str, default=None, help='')
 parser.add_argument('--log2wandb', type=str2bool, default=True)
 parser.add_argument('--wandb_group', type=str, default='')
+parser.add_argument('--blas_num_threads', type=str, default="4", help='set this not to cause openblas error')
 # args = parser.parse_args(args=['--checkpoint_path','output/2020-04-02_18:28:18.736004/model_log/checkpoint_epoch9_iter11'])
 args = parser.parse_args()
+
+os.environ["OPENBLAS_NUM_THREADS"] = args.blas_num_threads
 
 # get cfg data
 if len(args.config_file) > 0:
@@ -94,7 +97,7 @@ val_dataset = build_dataset_MP(cfg, save_dataset=False, mode='val')
 
 # set dataloader
 train_dataloader = DataLoader(train_dataset, batch_size=cfg.BASIC.BATCH_SIZE, shuffle=True, num_workers=cfg.BASIC.WORKERS)
-val_dataloader = DataLoader(val_dataset, batch_size=cfg.BASIC.BATCH_SIZE, shuffle=False, num_workers=cfg.BASIC.WORKERS)
+val_dataloader = DataLoader(val_dataset, batch_size=cfg.BASIC.BATCH_SIZE, shuffle=True, num_workers=cfg.BASIC.WORKERS)
 
 # set model
 model = build_model_MP(cfg)
@@ -168,6 +171,8 @@ for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
                 with torch.no_grad():
                     outputs = model(inputs)
                     _ = val_loss(inputs, outputs, mode='val')
+                if iteration >= 1000:
+                    break
             
             val_log = val_loss.get_log()
             if args.log2wandb:
@@ -179,7 +184,7 @@ for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
         
         # save checkpoint
         if total_iteration % args.save_step == 0:
-            checkpoint_dir = os.path.join(model_path,'checkpoint_epoch{}_iter{}'.format(epoch,iteration))
+            checkpoint_dir = os.path.join(model_path,'checkpoint_iter{}'.format(total_iteration))
             os.makedirs(checkpoint_dir, exist_ok=True)
             cp_path = os.path.join(checkpoint_dir, 'mp.pth')
             save_checkpoint(model, optimizer, epoch, iteration, cp_path, scheduler)
