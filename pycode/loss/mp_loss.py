@@ -107,13 +107,24 @@ class pose_sequence_loss(nn.Module):
             for intermidiate_id, pred_xyz in enumerate(pred_xyz_list):
                 inverse_intermidiate_id = len(pred_xyz_list) - intermidiate_id - 1
                 pred_xyz = pred_xyz.view(B, -1, 3)
-                loss = self.loss(pred_xyz, gt_xyz.to(self.device)) * gt_xyz_mask.to(self.device)
-                loss = torch.mean(loss)
+                x_loss = self.loss(pred_xyz[:,:,0], gt_xyz[:,:,0].to(self.device)) * gt_xyz_mask[:,:,0].to(self.device)
+                x_loss = torch.mean(x_loss)
+                y_loss = self.loss(pred_xyz[:,:,1], gt_xyz[:,:,1].to(self.device)) * gt_xyz_mask[:,:,1].to(self.device)
+                y_loss = torch.mean(y_loss)
+                z_loss = self.loss(pred_xyz[:,:,2], gt_xyz[:,:,2].to(self.device)) * gt_xyz_mask[:,:,2].to(self.device)
+                z_loss = torch.mean(z_loss)
+                loss = x_loss + y_loss + z_loss
                 loss_list.append(loss)
                 if (mode == 'train') or (mode == 'val'):
                     loss_dict['additional_info_{}/xyz_l1_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = loss.item()
+                    loss_dict['additional_info_{}/pos_x_l1_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = x_loss.item()
+                    loss_dict['additional_info_{}/pos_y_l1_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = y_loss.item()
+                    loss_dict['additional_info_{}/pos_z_l1_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = z_loss.item()
                 if (mode == 'test') and (inverse_intermidiate_id == 0) and (sequence_id == len(pred_xyz_sequence_list) - 1):
                     loss_dict['test_info/l1_xyz_last'] = loss.item()
+                    loss_dict['test_info/l1_x_last'] = x_loss.item()
+                    loss_dict['test_info/l1_y_last'] = y_loss.item()
+                    loss_dict['test_info/l1_z_last'] = z_loss.item()
 
         loss = sum(loss_list) / len(loss_list) 
 
@@ -370,13 +381,24 @@ class pose_sequence_test_loss(nn.Module):
             for intermidiate_id, pred_xyz in enumerate(pred_xyz_list):
                 inverse_intermidiate_id = len(pred_xyz_list) - intermidiate_id - 1
                 pred_xyz = pred_xyz.view(B, -1, 3)
-                loss = self.loss(pred_xyz, gt_xyz.to(self.device)) * gt_xyz_mask.to(self.device)
-                loss = torch.mean(loss)
+                x_loss = self.loss(pred_xyz[:,:,0], gt_xyz[:,:,0].to(self.device)) * gt_xyz_mask[:,:,0].to(self.device)
+                x_loss = torch.mean(x_loss)
+                y_loss = self.loss(pred_xyz[:,:,1], gt_xyz[:,:,1].to(self.device)) * gt_xyz_mask[:,:,1].to(self.device)
+                y_loss = torch.mean(y_loss)
+                z_loss = self.loss(pred_xyz[:,:,2], gt_xyz[:,:,2].to(self.device)) * gt_xyz_mask[:,:,2].to(self.device)
+                z_loss = torch.mean(z_loss)
+                loss = x_loss + y_loss + z_loss
                 loss_list.append(loss)
                 if (mode == 'train') or (mode == 'val'):
                     loss_dict['additional_info_{}/xyz_l1_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = loss.item()
+                    loss_dict['additional_info_{}/pos_x_l1_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = x_loss.item()
+                    loss_dict['additional_info_{}/pos_y_l1_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = y_loss.item()
+                    loss_dict['additional_info_{}/pos_z_l1_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = z_loss.item()
                 if (mode == 'test') and (inverse_intermidiate_id == 0) and (sequence_id == len(pred_xyz_sequence_list) - 1):
                     loss_dict['test_info/l1_xyz_last'] = loss.item()
+                    loss_dict['test_info/l1_x_last'] = x_loss.item()
+                    loss_dict['test_info/l1_y_last'] = y_loss.item()
+                    loss_dict['test_info/l1_z_last'] = z_loss.item()
 
         loss = sum(loss_list) / len(loss_list) 
 
