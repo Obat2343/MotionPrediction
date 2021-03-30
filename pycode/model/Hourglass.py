@@ -378,7 +378,7 @@ class sequence_hourglass(torch.nn.Module):
             if sequence_id == 0:
                 data_dict['rgb'] = inputs['rgb'][:,sequence_id:sequence_id+2].to(self.device)
                 data_dict['pose'] = inputs['pose'][:,sequence_id:sequence_id+2].to(self.device)
-                data_dict['pose_xyz'] = inputs['pose_xyz'][:,sequence_id:sequence_id+2]
+                data_dict['pose_xyz'] = inputs['pose_xyz'][:,sequence_id:sequence_id+2].to(self.device)
                 if self.pred_rotation:
                     data_dict['rotation_matrix'] = inputs['rotation_matrix'][:,sequence_id:sequence_id+2].to(self.device)
                 if self.pred_grasp:
@@ -395,7 +395,7 @@ class sequence_hourglass(torch.nn.Module):
                 if self.pred_rotation:
                     data_dict['rotation_matrix'] = torch.cat((inputs['rotation_matrix'][:,sequence_id:sequence_id+1].to(self.device),torch.unsqueeze(outputs_history_dict['rotation'][-1][-1], 1)), 1)
                 if self.pred_grasp:
-                    data_dict['grasp'] = torch.cat((inputs['grasp'][:,sequence_id:sequence_id+1].to(self.device), torch.unsqueeze(outputs_history_dict['grasp'][-1][-1], 1)), 1)
+                    data_dict['grasp'] = torch.cat((inputs['grasp'][:,sequence_id:sequence_id+1].to(self.device), outputs_history_dict['grasp'][-1][-1]), 1)
             else:
                 data_dict['rgb'] = torch.cat([torch.unsqueeze(intermidiate_img[-1],1) for intermidiate_img in outputs_history_dict['rgb'][-2:]], 1)
                 data_dict['pose'] = torch.cat([torch.unsqueeze(intermidiate_heatmap[-1],1) for intermidiate_heatmap in outputs_history_dict['heatmap'][-2:]], 1)
