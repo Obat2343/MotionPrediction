@@ -220,6 +220,26 @@ def save_outputs(inputs, outputs, path, index, cfg, mode='train'):
             save_rotation_path = os.path.join(path,'{}_rotation_{}_{}.jpg'.format(mode, index, sequence_id))
             torchvision.utils.save_image(rotation_images, save_rotation_path, nrow=cfg.BASIC.BATCH_SIZE)
 
+def save_outputs_vp(inputs, outputs, path, index, cfg, mode='train'):
+    pred_image = outputs['rgb'].cpu()
+    B, C, H, W = pred_image.shape
+
+    # save images
+    gt_images = inputs['rgb'][:,2]
+    diff_images = save_diff_heatmap_overlay(pred_image, gt_images)
+    save_images = torch.cat((gt_images, pred_image, diff_images), 0)
+    save_images_path = os.path.join(path,'{}_image_{}.jpg'.format(mode,index))
+    torchvision.utils.save_image(save_images, save_images_path, nrow=cfg.BASIC.BATCH_SIZE)
+
+    # save gt rgb image with uv cordinate
+    pos_image = make_pos_image((W,H),inputs['uv'][:,2],inputs['uv_mask'][:,2])
+    overlay_gt_image = make_overlay_image(inputs['rgb'][:,2], pos_image)
+    overlay_pred_image = make_overlay_image(pred_image, pos_image)
+    overlay_diff_image = make_overlay_image(diff_images, pos_image)
+    overlay_images = torch.cat((overlay_gt_image, overlay_pred_image, diff_images), 0)
+    save_over_path = os.path.join(path,'{}_image_uv_{}.jpg'.format(mode,index))
+    torchvision.utils.save_image(overlay_images,save_over_path,nrow=cfg.BASIC.BATCH_SIZE)
+
 def convert_heatmap(heatmap):
     B, C, H, W = heatmap.shape
     max_value = torch.max(heatmap.view(B,C,-1),2)[0]
@@ -344,10 +364,11 @@ def make_pos_image(size,uv_data,uv_mask,r=3):
 
 def save_diff_heatmap_overlay(pred, gt):
     totensor = torchvision.transforms.ToTensor()
+    pred = pred.cpu()
     heatmap = torch.abs(pred - gt).squeeze(1)
 
     for i in range(heatmap.shape[0]):
-        image_ins = pred[i].cpu().numpy().transpose((1, 2, 0))*255
+        image_ins = pred[i].numpy().transpose((1, 2, 0))*255
         image_ins = image_ins.clip(0, 255).astype(np.uint8)
         
         heatmap_ins = torch.mean(heatmap[i],dim=0).cpu().numpy()*255

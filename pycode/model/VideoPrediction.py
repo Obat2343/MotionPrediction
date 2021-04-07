@@ -35,7 +35,7 @@ class ResUpsampleBlock(nn.Module):
 
 class Encoder(nn.Module):
 
-    def __init__(self, input_dim=3, filter_size=3, min_filter_num=64, max_filter_num=512, downscale_num=4):
+    def __init__(self, input_dim=3, filter_size=3, min_filter_num=64, max_filter_num=512, downscale_num=4, activation='relu', norm='none'):
         super(Encoder, self).__init__()
         self.downscale_num = downscale_num
 
@@ -43,11 +43,12 @@ class Encoder(nn.Module):
         current_filter_num = min_filter_num
         for i in range(self.downscale_num):
             next_filter_num = min(current_filter_num * 2, max_filter_num)
-            res_blocks.append(ResSubsampleBlock(current_filter_num, next_filter_num, filter_size))
+            res_blocks.append(ResSubsampleBlock(current_filter_num, next_filter_num, filter_size, activation=activation))
             current_filter_num = next_filter_num
 
         self.res_blocks = nn.ModuleList(res_blocks)
-        self.conv = nn.Conv2d(input_dim, min_filter_num, filter_size, 1, 1)
+        self.conv = ConvBlock(input_dim, min_filter_num, filter_size, 1, 1, activation=activation, norm=norm)
+        # self.conv = nn.Conv2d(input_dim, min_filter_num, filter_size, 1, 1)
         # self.conv_z = nn.Conv2d(current_filter_num, z_dim, 1, 1, 0)
 
     def forward(self, x):
@@ -127,13 +128,21 @@ class Decoder(nn.Module):
 
 class VIDEO_HOURGLASS(nn.Module):
 
-    def __init__(self, cfg, pose_dim=1, filter_size=3, device='cuda'):
+    def __init__(self, cfg, pose_dim='none', filter_size=3, device='cuda'):
         super(VIDEO_HOURGLASS, self).__init__()
         self.device = device
         self.mode = cfg.VIDEO_HOUR.MODE #'pcf','pc','c'
         self.use_depth = cfg.VIDEO_HOUR.DEPTH # TODO
 
         basic_dim = 3 + int(self.use_depth)
+
+        if pose_dim == 'none':
+            if cfg.DATASET.NAME == 'HMD':
+                pose_dim = 21
+            elif cfg.DATASET.NAME == 'RLBench':
+                pose_dim = 1
+            else:
+                raise ValueError("invalid pose dim")
 
         if self.mode == 'pcf':
             encoder_input_dim = basic_dim * 3
@@ -147,8 +156,8 @@ class VIDEO_HOURGLASS(nn.Module):
         
         decoder_output_dim = basic_dim
 
-        min_filter_num = cfg.VIDEO_HOUR.MIN_FILTER_NUM
-        max_filter_num = cfg.VIDEO_HOUR.MAX_FILTER_NUM
+        min_filter_num = int(cfg.VIDEO_HOUR.MIN_FILTER_NUM)
+        max_filter_num = int(cfg.VIDEO_HOUR.MAX_FILTER_NUM)
 
         self.img_encoder = Encoder(input_dim=encoder_input_dim, filter_size=filter_size, min_filter_num=min_filter_num, max_filter_num=max_filter_num, downscale_num=cfg.VIDEO_HOUR.NUM_DOWN)
         self.pose_encoder = Encoder(input_dim=pose_encoder_dim, filter_size=filter_size, min_filter_num=min_filter_num, max_filter_num=256, downscale_num=cfg.VIDEO_HOUR.NUM_DOWN)
@@ -201,11 +210,11 @@ class VIDEO_HOURGLASS(nn.Module):
 
 class Discriminator(nn.Module):
 
-    def __init__(self, cfg, input_size):
+    def __init__(self, cfg, input_size, activation='lrelu', norm='none'):
         super(Discriminator, self).__init__()
-        filter_size = cfg.MODEL.FRGAN.DIS.FILTER_SIZE
-        min_filter_num = cfg.MODEL.FRGAN.DIS.MIN_FILTER_NUM
-        max_filter_num = cfg.MODEL.FRGAN.DIS.MAX_FILETER_NUM
+        filter_size = 3
+        min_filter_num = cfg.DISCRIMINATOR.MIN_FILTER_NUM
+        max_filter_num = cfg.DISCRIMINATOR.MAX_FILTER_NUM
 
         self.block_num, self.height, self.width = self._compute_layer_config(input_size)
 
@@ -213,11 +222,11 @@ class Discriminator(nn.Module):
         current_filter_num = min_filter_num
         for i in range(self.block_num):
             next_filter_num = min(current_filter_num * 2, max_filter_num)
-            res_blocks.append(ResSubsampleBlock(current_filter_num, next_filter_num, filter_size, relu=nn.LeakyReLU()))
+            res_blocks.append(ResSubsampleBlock(current_filter_num, next_filter_num, filter_size, activation=activation))
             current_filter_num = next_filter_num
 
         self.res_blocks = nn.ModuleList(res_blocks)
-        self.conv = nn.Conv2d(3, min_filter_num, filter_size, 1, 1)
+        self.conv = ConvBlock(3, min_filter_num, 3, 1, 1, activation=activation, norm=norm)
         self.fc_dim = current_filter_num * self.height * self.width
         self.fc = nn.Linear(self.fc_dim, 1)
 

@@ -1,0 +1,13 @@
+PRED_LEN: 1
+DATASET:
+  NAME: 'RLBench' # HMD, RLBench
+  RLBENCH:
+    TASK_LIST: ['all']
+BASIC:
+  NUM_GPU: 2
+  BATCH_SIZE: 6
+LOAD_MODEL: 'all'
+VIDEO_HOUR:
+  MODE: 'pcf'
+SEQUENCE_HOUR:
+  MODE: 2

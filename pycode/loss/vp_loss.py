@@ -6,7 +6,7 @@ from torchvision.utils import make_grid
 from torch.autograd import Variable
 from torch.autograd import grad as torch_grad
 
-from ./discriminator_loss import Gradient_Penalty, W_GAN_Loss
+from .discriminator_loss import Gradient_Penalty, W_GAN_Loss
 
 class Train_Loss_Video(nn.Module):
     def __init__(self,cfg,device):
