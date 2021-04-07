@@ -113,7 +113,7 @@ class pose_sequence_loss(nn.Module):
                 y_loss = torch.mean(y_loss)
                 z_loss = self.loss(pred_xyz[:,:,2], gt_xyz[:,:,2].to(self.device)) * gt_xyz_mask[:,:,2].to(self.device)
                 z_loss = torch.mean(z_loss)
-                loss = x_loss + y_loss + z_loss
+                loss = (x_loss + y_loss + z_loss) / 3
                 loss_list.append(loss)
                 if (mode == 'train') or (mode == 'val'):
                     loss_dict['additional_info_{}/xyz_l1_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = loss.item()
@@ -387,7 +387,7 @@ class pose_sequence_test_loss(nn.Module):
                 y_loss = torch.mean(y_loss)
                 z_loss = self.loss(pred_xyz[:,:,2], gt_xyz[:,:,2].to(self.device)) * gt_xyz_mask[:,:,2].to(self.device)
                 z_loss = torch.mean(z_loss)
-                loss = x_loss + y_loss + z_loss
+                loss = (x_loss + y_loss + z_loss) / 3
                 loss_list.append(loss)
                 if (mode == 'train') or (mode == 'val'):
                     loss_dict['additional_info_{}/xyz_l1_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = loss.item()

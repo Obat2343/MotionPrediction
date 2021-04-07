@@ -23,13 +23,14 @@ from pycode.misc import save_outputs, build_model_MP, build_dataset_MP, build_op
 # parser
 parser = argparse.ArgumentParser(description='parser for image generator')
 parser.add_argument('--config_file', type=str, default='', metavar='FILE', help='path to config file')
-parser.add_argument('--log_step', type=int, default=50, help='')
+parser.add_argument('--log_step', type=int, default=100, help='')
 parser.add_argument('--save_step', type=int, default=5000, help='')
 parser.add_argument('--eval_step', type=int, default=5000, help='')
 parser.add_argument('--output_dirname', type=str, default='', help='')
 parser.add_argument('--checkpoint_path', type=str, default=None, help='')
 parser.add_argument('--log2wandb', type=str2bool, default=True)
 parser.add_argument('--wandb_group', type=str, default='')
+parser.add_argument('--save_dataset', type=str2bool, default=False)
 parser.add_argument('--blas_num_threads', type=str, default="4", help='set this not to cause openblas error')
 # args = parser.parse_args(args=['--checkpoint_path','output/2020-04-02_18:28:18.736004/model_log/checkpoint_epoch9_iter11'])
 args = parser.parse_args()
@@ -92,8 +93,8 @@ if args.log2wandb:
                     group=group)
 
 # set dataset
-train_dataset = build_dataset_MP(cfg, save_dataset=False, mode='train')
-val_dataset = build_dataset_MP(cfg, save_dataset=False, mode='val')
+train_dataset = build_dataset_MP(cfg, save_dataset=args.save_dataset, mode='train')
+val_dataset = build_dataset_MP(cfg, save_dataset=args.save_dataset, mode='val')
 
 # set dataloader
 train_dataloader = DataLoader(train_dataset, batch_size=cfg.BASIC.BATCH_SIZE, shuffle=True, num_workers=cfg.BASIC.WORKERS)

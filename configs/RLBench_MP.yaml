@@ -2,6 +2,8 @@ MP_MODEL_NAME: 'hourglass' # hourglass, sequence_hourglass
 PRED_LEN: 1
 DATASET:
   NAME: 'RLBench' # HMD, RLBench
+  RLBENCH:
+    TASK_LIST: ['all']
 BASIC:
   NUM_GPU: 1
   BATCH_SIZE: 3
@@ -22,6 +24,8 @@ SEQUENCE_HOUR:
   MODE: 2
 LOSS:
   POSE:
-    WEIGHT: 10.0
+    WEIGHT: 1.0
   ARGMAX:
     WEIGHT: 1.0
+  ROTATION:
+    WEIGHT: 10.0

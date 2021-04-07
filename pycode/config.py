@@ -19,7 +19,7 @@ _C.BASIC.SEED = 123
 _C.BASIC.MAX_EPOCH = 1000
 _C.BASIC.BATCH_SIZE = 8
 _C.BASIC.NUM_GPU = 4
-_C.BASIC.WORKERS = 16
+_C.BASIC.WORKERS = 8
 
 ###############################
 # DATASET #####################
@@ -40,8 +40,20 @@ _C.DATASET.HMD.RANDOM_LEN = 2  # random range -> FRAME_INTERVAL * RANDOM_LEN
 
 # RLBench
 _C.DATASET.RLBENCH = CN()
+_C.DATASET.RLBENCH.TASK_LIST = ['all'] # e.g. ['CloseJar'] 
 _C.DATASET.RLBENCH.PATH = os.path.abspath('../dataset/RLBench')
 _C.DATASET.RLBENCH.RANDOM_LEN = 3
+
+"""
+task list
+CloseJar, 
+OpenGrill, OpenJar, OpenWineBottle,
+PickUpCup,
+PutKnifeOnChoppingBoard, PutRubbishInBin,
+StackWine, 
+TakePlateOffColoredDishRack,
+WipeDesk
+"""
 
 ###############################
 # AUGMENTATION ################

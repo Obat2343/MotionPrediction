@@ -4,7 +4,6 @@ import sys
 import json
 import math
 import random
-import trimesh
 import imgaug as ia
 from imgaug import augmenters as iaa
 import numpy as np
@@ -12,7 +11,6 @@ from pprint import pprint
 from PIL import Image, ImageDraw, ImageOps
 from matplotlib import pyplot as plt
 from torchvision import datasets, models, transforms
-from tensorboardX import SummaryWriter
 import pandas as pd
 import pickle
 
@@ -1004,23 +1002,26 @@ class RLBench_dataset(Dataset_Template):
         
         self.seed = 0
         
-        self._json_file_name = 'RL_Becnh_dataset_{}_{}.json'.format(mode,self.pred_len)
-        if (self._json_file_name not in os.listdir(data_root_dir)) or save_dataset:
+        task_names = self.get_task_names(cfg.DATASET.RLBENCH.TASK_LIST)
+        self._json_file_name = 'RL_Becnh_dataset_{}_{}{}.json'.format(mode,self.pred_len,task_names)
+        json_path = os.path.join(data_root_dir, 'json', self._json_file_name)
+        if not os.path.exists(json_path) or save_dataset:
             # create dataset
             print('There is no json data')
             print('create json data')
-            self.add_data(data_root_dir)
+            self.add_data(data_root_dir, cfg)
             print('done')
             
             # save json data
             print('save json data')
-            with open(os.path.join(data_root_dir, self._json_file_name), 'w') as f:
+            os.makedirs(os.path.join(data_root_dir, 'json'), exist_ok=True)
+            with open(json_path, 'w') as f:
                 json.dump([self.data_list, self.index_list],f,indent=4)
             print('done')
         else:
             # load json data
             print('load json data')
-            with open(os.path.join(data_root_dir, self._json_file_name)) as f:
+            with open(json_path) as f:
                 [self.data_list, self.index_list] = json.load(f)
 
         self.get_image_size()
@@ -1114,7 +1115,7 @@ class RLBench_dataset(Dataset_Template):
         
         return input_dict
 
-    def add_data(self, folder_path: str):
+    def add_data(self, folder_path, cfg):
         """
         output:
         data_list: list
@@ -1135,6 +1136,14 @@ class RLBench_dataset(Dataset_Template):
         task_list = os.listdir(folder_path) # get task list
         task_list.sort() # sort task
         for task_name in task_list:
+            if 'all' in cfg.DATASET.RLBENCH.TASK_LIST:
+                pass
+            elif task_name not in cfg.DATASET.RLBENCH.TASK_LIST:
+                continue
+
+            if task_name == 'json':
+                continue
+
             if 'RL_Becnh_dataset' in task_name:
                 continue
             
@@ -1213,6 +1222,13 @@ class RLBench_dataset(Dataset_Template):
         w, h = img.size
         self.size = (h , w)
 
+    @staticmethod
+    def get_task_names(task_list):
+        task_name = ""
+        for task in task_list:
+            task_name = task_name + "_" + task
+        return task_name
+
 class RLBench_dataset_VP(RLBench_dataset):
 
     def __init__(self,cfg,save_dataset=False,mode='train'):
@@ -1252,23 +1268,27 @@ class RLBench_dataset_VP(RLBench_dataset):
         self.seed = 0
         self.random_len = cfg.DATASET.RLBENCH.RANDOM_LEN 
         
-        self._json_file_name = 'RL_Becnh_dataset_VP_{}_{}.json'.format(mode,self.pred_len)
-        if (self._json_file_name not in os.listdir(data_root_dir)) or save_dataset:
+        task_names = self.get_task_names(cfg.DATASET.RLBENCH.TASK_LIST)
+        self._json_file_name = 'RL_Becnh_dataset_VP_{}_{}{}.json'.format(mode,self.pred_len,task_names)
+        json_path = os.path.join(data_root_dir, 'json', self._json_file_name)
+
+        if not os.path.exists(json_path) or save_dataset:
             # create dataset
             print('There is no json data')
             print('create json data')
-            self.add_data(data_root_dir)
+            self.add_data(data_root_dir, cfg)
             print('done')
             
             # save json data
             print('save json data')
-            with open(os.path.join(data_root_dir, self._json_file_name), 'w') as f:
+            os.makedirs(os.path.join(data_root_dir, 'json'), exist_ok=True)
+            with open(json_path, 'w') as f:
                 json.dump([self.data_list, self.index_list],f,indent=4)
             print('done')
         else:
             # load json data
             print('load json data')
-            with open(os.path.join(data_root_dir, self._json_file_name)) as f:
+            with open(json_path) as f:
                 [self.data_list, self.index_list] = json.load(f)
 
         self.get_image_size()
@@ -1373,7 +1393,7 @@ class RLBench_dataset_VP(RLBench_dataset):
         
         return input_dict
 
-    def add_data(self, folder_path: str):
+    def add_data(self, folder_path, cfg):
         """
         output:
         data_list: list
@@ -1393,6 +1413,14 @@ class RLBench_dataset_VP(RLBench_dataset):
         task_list = os.listdir(folder_path) # get task list
         task_list.sort() # sort task
         for task_name in task_list:
+            if 'all' in cfg.DATASET.RLBENCH.TASK_LIST:
+                pass
+            elif task_name not in cfg.DATASET.RLBENCH.TASK_LIST:
+                continue
+
+            if task_name == 'json':
+                continue
+            
             if 'RL_Becnh_dataset' in task_name:
                 continue
             
@@ -1450,23 +1478,27 @@ class RLBench_dataset_test(RLBench_dataset):
         
         self.seed = 0
         
-        self._json_file_name = 'RL_Becnh_dataset_Test_{}_{}.json'.format(mode,self.pred_len)
-        if (self._json_file_name not in os.listdir(data_root_dir)) or save_dataset:
+        task_names = self.get_task_names(cfg.DATASET.RLBENCH.TASK_LIST)
+        self._json_file_name = 'RL_Becnh_dataset_Test_{}_{}{}.json'.format(mode,self.pred_len,task_names)
+        json_path = os.path.join(data_root_dir, 'json', self._json_file_name)
+
+        if not os.path.exists(json_path) or save_dataset:
             # create dataset
             print('There is no json data')
             print('create json data')
-            self.add_data(data_root_dir)
+            self.add_data(data_root_dir, cfg)
             print('done')
             
             # save json data
             print('save json data')
-            with open(os.path.join(data_root_dir, self._json_file_name), 'w') as f:
+            os.makedirs(os.path.join(data_root_dir, 'json'), exist_ok=True)
+            with open(json_path, 'w') as f:
                 json.dump([self.data_list, self.index_list, self.sequence_index_list],f,indent=4)
             print('done')
         else:
             # load json data
             print('load json data')
-            with open(os.path.join(data_root_dir, self._json_file_name)) as f:
+            with open(json_path) as f:
                 [self.data_list, self.index_list, self.sequence_index_list] = json.load(f)
 
         self.get_image_size()
