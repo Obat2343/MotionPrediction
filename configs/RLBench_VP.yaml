@@ -7,6 +7,11 @@ BASIC:
   NUM_GPU: 2
   BATCH_SIZE: 6
 LOAD_MODEL: 'all'
+LOSS:
+  GAN:
+    WEIGHT: 10.0
+  GP:
+    WEIGHT: 1.0
 VIDEO_HOUR:
   MODE: 'pcf'
 SEQUENCE_HOUR:

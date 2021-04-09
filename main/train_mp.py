@@ -28,6 +28,7 @@ parser.add_argument('--save_step', type=int, default=5000, help='')
 parser.add_argument('--eval_step', type=int, default=5000, help='')
 parser.add_argument('--output_dirname', type=str, default='', help='')
 parser.add_argument('--checkpoint_path', type=str, default=None, help='')
+parser.add_argument('--vp_path', type=str, default='')
 parser.add_argument('--log2wandb', type=str2bool, default=True)
 parser.add_argument('--wandb_group', type=str, default='')
 parser.add_argument('--save_dataset', type=str2bool, default=False)
@@ -102,6 +103,11 @@ val_dataloader = DataLoader(val_dataset, batch_size=cfg.BASIC.BATCH_SIZE, shuffl
 
 # set model
 model = build_model_MP(cfg)
+
+if (args.vp_path != "") and (cfg.SEQUENCE_HOUR.USE_VIDEOMODEL):
+    vp_path = os.path.join(args.vp_path, 'vp.pth')
+    model.video_pred_model, _, _, _, _ = load_checkpoint(model.video_pred_model, vp_path, fix_parallel=True)
+
 model = torch.nn.DataParallel(model, device_ids = list(range(cfg.BASIC.NUM_GPU)))
 model = model.to(device)
 

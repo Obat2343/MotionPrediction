@@ -1,12 +1,12 @@
-MP_MODEL_NAME: 'hourglass' # hourglass, sequence_hourglass
-PRED_LEN: 1
+MP_MODEL_NAME: 'sequence_hourglass' # hourglass, sequence_hourglass
+PRED_LEN: 4
 DATASET:
   NAME: 'RLBench' # HMD, RLBench
   RLBENCH:
-    TASK_LIST: ['all']
+    TASK_LIST: ['OpenWineBottle']
 BASIC:
-  NUM_GPU: 1
-  BATCH_SIZE: 3
+  NUM_GPU: 2
+  BATCH_SIZE: 2
 LOAD_MODEL: 'all'
 HOURGLASS:
   NUM_BLOCK: 2
@@ -24,7 +24,7 @@ SEQUENCE_HOUR:
   MODE: 2
 LOSS:
   POSE:
-    WEIGHT: 1.0
+    WEIGHT: 100.0
   ARGMAX:
     WEIGHT: 1.0
   ROTATION:

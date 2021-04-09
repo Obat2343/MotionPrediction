@@ -214,7 +214,7 @@ for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
             print('validation start')
             for iteration, inputs in enumerate(val_dataloader, 1):
                 with torch.no_grad():
-                    output = model(make_videomodel_input(inputs,device))
+                    outputs = model(make_videomodel_input(inputs,device))
                     _ = val_loss_vp(inputs, outputs, mode='val')
                 if iteration >= 1000:
                     break
