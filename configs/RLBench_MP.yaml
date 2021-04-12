@@ -3,7 +3,7 @@ PRED_LEN: 4
 DATASET:
   NAME: 'RLBench' # HMD, RLBench
   RLBENCH:
-    TASK_LIST: ['OpenWineBottle']
+    TASK_LIST: ['PutRubbishInBin']
 BASIC:
   NUM_GPU: 2
   BATCH_SIZE: 2
