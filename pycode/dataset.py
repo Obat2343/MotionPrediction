@@ -1767,7 +1767,7 @@ class RLBench_dataset2_VP(RLBench_dataset2):
         img_trans: transform(torch.transform) list
         seed: seed for data augmentation
         """
-        data_root_dir = os.path.join(cfg.DATASET.RLBENCH2.PATH, mode)
+        data_root_dir = os.path.join(cfg.DATASET.RLBENCH.PATH2, mode)
 
         self.data_list = None
         self.index_list = None

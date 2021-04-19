@@ -133,6 +133,9 @@ class VIDEO_HOURGLASS(nn.Module):
         self.device = device
         self.mode = cfg.VIDEO_HOUR.MODE #'pcf','pc','c'
         self.use_depth = cfg.VIDEO_HOUR.DEPTH # TODO
+        self.input_z = cfg.VIDEO_HOUR.INPUT_Z
+        self.input_rotation = cfg.VIDEO_HOUR.INPUT_ROTATION
+        self.input_grasp = cfg.VIDEO_HOUR.INPUT_GRASP
 
         basic_dim = 3 + int(self.use_depth)
 
@@ -143,6 +146,8 @@ class VIDEO_HOURGLASS(nn.Module):
                 pose_dim = 1
             else:
                 raise ValueError("invalid pose dim")
+
+        pose_dim = (pose_dim + (6 * self.input_rotation) + self.input_grasp)
 
         if self.mode == 'pcf':
             encoder_input_dim = basic_dim * 3
@@ -167,24 +172,45 @@ class VIDEO_HOURGLASS(nn.Module):
 
     def forward(self, inputs):
         RGB, POSE = inputs['rgb'], inputs['pose']
-        B,_,_,H,W = RGB.shape
+        B,S,C,H,W = POSE.shape
         output_dict = {}
 
-        if self.mode == 'pcf':
-            IMAGE_BATCH = RGB.view(B,-1,H,W)
+        if (self.mode == 'pcf') and (self.mode == 'pc'):
             BASE_IMAGE = RGB[:,1]
-            POSE_BATCH = POSE[:,:4].view(B,-1,H,W)
-        elif self.mode == 'pc':
-            IMAGE_BATCH = RGB[:,:-1].view(B,-1,H,W)
-            BASE_IMAGE = RGB[:,1]
-            POSE_BATCH = POSE[:,:-1].view(B,-1,H,W)
         else:
-            IMAGE_BATCH = RGB[:,1:-1].view(B,-1,H,W)
-            BASE_IMAGE = RGB[:,1]
-            POSE_BATCH = POSE[:,1:-1].view(B,-1,H,W)
+            BASE_IMAGE = RGB[:,0]
 
-        u = self.img_encoder(IMAGE_BATCH)
-        u0 = self.pose_encoder(POSE_BATCH)
+        RGB = RGB.view(B, -1, H, W)
+        POSE = POSE.view(B, -1, H, W)
+
+        pose_map = []
+        if self.input_z:
+            input_z = inputs['pose_xyz'][:,:,2::3] # B,S,C
+            input_z = input_z.view(B,-1) # B, S
+            input_z = torch.unsqueeze(input_z,2)
+            input_z = torch.unsqueeze(input_z,3)
+            pose_map.append(POSE * input_z.expand(B,S,H,W))
+        if self.input_rotation:
+            input_rotation = inputs['rotation_matrix'][:,:,:2]
+            input_rotation = input_rotation.view(B,-1,6)
+            input_rotation = input_rotation.contiguous().view(B,-1)
+            input_rotation = torch.unsqueeze(input_rotation, 2)
+            input_rotation = torch.unsqueeze(input_rotation, 3)
+            input_rotation = input_rotation.expand(B,6*S,H,W)
+
+            heatmap_for_rotation = torch.cat([POSE[:,s:s+1].expand(B,6,H,W) for s in range(S)], 1)
+            pose_map.append(heatmap_for_rotation * input_rotation)
+        if self.input_grasp:
+            input_grasp = inputs['grasp'].view(B,-1)
+            input_grasp = torch.unsqueeze(input_grasp, 2)
+            input_grasp = torch.unsqueeze(input_grasp, 3)
+            pose_map.append(POSE * input_grasp.expand(B,S,H,W))
+
+        if len(pose_map) > 0:
+            POSE = torch.cat(pose_map, 1)
+
+        u = self.img_encoder(RGB.view(B, -1, H, W))
+        u0 = self.pose_encoder(POSE.view(B, -1, H, W))
         # d = n0 - n1
         out, rgb_mask, depth_mask = self.decoder([u, u0])
         rgb_mask = rgb_mask.repeat(1, 3, 1, 1)

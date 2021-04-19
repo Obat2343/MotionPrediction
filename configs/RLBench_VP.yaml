@@ -4,15 +4,18 @@ DATASET:
   RLBENCH:
     TASK_LIST: ['all']
 BASIC:
-  NUM_GPU: 2
+  NUM_GPU: 3
   BATCH_SIZE: 6
 LOAD_MODEL: 'all'
 LOSS:
   GAN:
-    WEIGHT: 10.0
+    WEIGHT: 0.1
   GP:
-    WEIGHT: 1.0
+    WEIGHT: 0.01
 VIDEO_HOUR:
   MODE: 'pcf'
+  INPUT_Z: True
+  INPUT_ROTATION: True
+  INPUT_GRASP: True
 SEQUENCE_HOUR:
   MODE: 2

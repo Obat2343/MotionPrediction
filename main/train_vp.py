@@ -153,18 +153,33 @@ else:
     start_epoch, start_iter = 0, 1
 
 def make_videomodel_input(inputs, device, sequence_id=0):
-        '''
-        output:
-        dictionary{
-        rgb => torch.Tensor shape=(B,S,C,H,W),
-        pose => torch.Tensor shape=(B,S,C,H,W)}
-        '''
+    '''
+    output:
+    dictionary{
+    rgb => torch.Tensor shape=(B,S,C,H,W),
+    pose => torch.Tensor shape=(B,S,C,H,W)}
+    '''
+    if cfg.VIDEO_HOUR.MODE == 'pcf':
         index_list = [sequence_id, sequence_id+1, sequence_id+3]
         rgb = inputs['rgb'][:,index_list].to(device)
-        
         pose_heatmap = inputs['pose'][:,:4].to(device)
-
-        return {'rgb':rgb, 'pose':pose_heatmap}
+        pose_xyz = inputs['pose_xyz'][:,:4].to(device)
+        rotation_matrix = inputs['rotation_matrix'][:,:4].to(device)
+        grasp = inputs['grasp'][:,:4].to(device)
+    elif cfg.VIDEO_HOUR.MODE == 'pc':
+        index_list = [sequence_id, sequence_id+1]
+        rgb = inputs['rgb'][:,index_list].to(device)
+        pose_heatmap = inputs['pose'][:,:3].to(device)
+        pose_xyz = inputs['pose_xyz'][:,:3].to(device)
+        rotation_matrix = inputs['rotation_matrix'][:,:3].to(device)
+        grasp = inputs['grasp'][:,:3].to(device)
+    elif cfg.VIDEO_HOUR.MODE == 'c':
+        rgb = inputs['rgb'][:,1].to(device)
+        pose_heatmap = inputs['pose'][:,1:3].to(device)
+        pose_xyz = inputs['pose_xyz'][:,1:3].to(device)
+        rotation_matrix = inputs['rotation_matrix'][:,1:3].to(device)
+        grasp = inputs['grasp'][:,1:3].to(device)
+    return {'rgb':rgb, 'pose':pose_heatmap, 'pose_xyz':pose_xyz, 'rotation_matrix':rotation_matrix, 'grasp':grasp}
 
 # start train
 tic = time.time()
