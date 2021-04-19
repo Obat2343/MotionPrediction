@@ -1,12 +1,12 @@
-MP_MODEL_NAME: 'sequence_hourglass' # hourglass, sequence_hourglass
-PRED_LEN: 4
+MP_MODEL_NAME: 'hourglass' # hourglass, sequence_hourglass
+PRED_LEN: 1
 DATASET:
   NAME: 'RLBench' # HMD, RLBench
   RLBENCH:
     TASK_LIST: ['PutRubbishInBin']
 BASIC:
-  NUM_GPU: 2
-  BATCH_SIZE: 2
+  NUM_GPU: 1
+  BATCH_SIZE: 3
 LOAD_MODEL: 'all'
 HOURGLASS:
   NUM_BLOCK: 2
@@ -15,7 +15,7 @@ HOURGLASS:
   PRED_RGB: False
   PRED_ROTATION: True
   PRED_GRASP: True
-  INPUT_PAST: True
+  INPUT_PAST: False
   INPUT_ROTATION: True
   INPUT_GRASP: True
 VIDEO_HOUR:

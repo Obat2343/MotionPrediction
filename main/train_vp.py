@@ -49,7 +49,7 @@ else:
     output_dirname = args.output_dirname
     
 output_dirname = os.path.join(cfg.BASIC.OUTPUT_DIR, cfg.DATASET.NAME, output_dirname)
-if os.path.exits(output_dirname):
+if os.path.exists(output_dirname):
     while 1:
         ans = input('The specified output dir is already exists. Overwrite? y or n: ')
         if ans == 'y':
@@ -58,7 +58,7 @@ if os.path.exits(output_dirname):
             raise ValueError("Please specify correct output dir")
         else:
             print('please type y or n')
-            
+
 cfg.freeze()
 
 # define save model path

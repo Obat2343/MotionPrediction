@@ -51,7 +51,7 @@ else:
     output_dirname = args.output_dirname
     
 output_dirname = os.path.join(cfg.BASIC.OUTPUT_DIR, cfg.DATASET.NAME, output_dirname)
-if os.path.exits(output_dirname):
+if os.path.exists(output_dirname):
     while 1:
         ans = input('The specified output dir is already exists. Overwrite? y or n: ')
         if ans == 'y':

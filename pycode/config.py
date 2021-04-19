@@ -42,6 +42,7 @@ _C.DATASET.HMD.RANDOM_LEN = 2  # random range -> FRAME_INTERVAL * RANDOM_LEN
 _C.DATASET.RLBENCH = CN()
 _C.DATASET.RLBENCH.TASK_LIST = ['all'] # e.g. ['CloseJar'] 
 _C.DATASET.RLBENCH.PATH = os.path.abspath('../dataset/RLBench')
+_C.DATASET.RLBENCH.PATH2 = os.path.abspath('../dataset/RLBench2')
 _C.DATASET.RLBENCH.RANDOM_LEN = 3
 
 """
