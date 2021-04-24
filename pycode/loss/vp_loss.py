@@ -213,8 +213,6 @@ class PSNR(nn.Module):
         output_image = outputs['rgb']
         gt_image = inputs['rgb'][:,2].to(self.device)
         B, _, _, _ = output_image.shape
-        if B != 1:
-            raise ValueError("not implemented")
 
         action = inputs['action_name'][0]
 

@@ -1,9 +1,9 @@
 MP_MODEL_NAME: 'hourglass' # hourglass, sequence_hourglass
 PRED_LEN: 1
 DATASET:
-  NAME: 'RLBench' # HMD, RLBench
+  NAME: 'RLBench2' # HMD, RLBench
   RLBENCH:
-    TASK_LIST: ['PutRubbishInBin']
+    TASK_LIST: ['PickUpCup']
 BASIC:
   NUM_GPU: 1
   BATCH_SIZE: 3

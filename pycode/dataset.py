@@ -259,12 +259,12 @@ class Softargmax_dataset(Dataset_Template):
         self.seed = 0
         
         # augmentation
-        if cfg.DATASET.RGB_AUGMENTATION:
+        if (cfg.DATASET.RGB_AUGMENTATION) and (mode == 'train'):
             self.img_trans = imageaug_full_transform(cfg)
         else:
             self.img_trans = None
         
-        if cfg.DATASET.DEPTH_AUGMENTATION:
+        if (cfg.DATASET.DEPTH_AUGMENTATION) and (mode == 'train'):
             self.depth_trans = depth_aug(cfg)
         else:
             self.depth_trans = None
@@ -563,7 +563,7 @@ class Softargmax_dataset(Dataset_Template):
 
 class Softargmax_dataset_VP(Softargmax_dataset):
 
-    def __init__(self,cfg,save_dataset=False,mode='train'):
+    def __init__(self,cfg,save_dataset=False,mode='train',random_len=0):
         """
         output: image_t,posture_t,image_t+1,posture_t+1
         
@@ -584,15 +584,19 @@ class Softargmax_dataset_VP(Softargmax_dataset):
         self.seed = 0
         
         self.frame_interval = cfg.DATASET.HMD.FRAME_INTERVAL
-        self.random_len = cfg.DATASET.HMD.RANDOM_LEN
+
+        if random_len == 0:
+            self.random_len = cfg.DATASET.HMD.RANDOM_LEN
+        else:
+            self.random_len = random_len 
 
         # augmentation
-        if cfg.DATASET.RGB_AUGMENTATION:
+        if (cfg.DATASET.RGB_AUGMENTATION) and (mode == 'train'):
             self.img_trans = imageaug_full_transform(cfg)
         else:
             self.img_trans = None
         
-        if cfg.DATASET.DEPTH_AUGMENTATION:
+        if (cfg.DATASET.DEPTH_AUGMENTATION) and (mode == 'train'):
             self.depth_trans = depth_aug(cfg)
         else:
             self.depth_trans = None
@@ -984,12 +988,12 @@ class RLBench_dataset(Dataset_Template):
         self.sequence_index_list = None
 
         # augmentation
-        if cfg.DATASET.RGB_AUGMENTATION:
+        if (cfg.DATASET.RGB_AUGMENTATION) and (mode == 'train'):
             self.img_trans = imageaug_full_transform(cfg)
         else:
             self.img_trans = None
         
-        if cfg.DATASET.DEPTH_AUGMENTATION:
+        if (cfg.DATASET.DEPTH_AUGMENTATION) and (mode == 'train'):
             self.depth_trans = depth_aug(cfg)
         else:
             self.depth_trans = None
@@ -1231,7 +1235,7 @@ class RLBench_dataset(Dataset_Template):
 
 class RLBench_dataset_VP(RLBench_dataset):
 
-    def __init__(self,cfg,save_dataset=False,mode='train'):
+    def __init__(self,cfg,save_dataset=False,mode='train',random_len=0):
         """
         output: image_t,posture_t,image_t+1,posture_t+1
         
@@ -1250,12 +1254,12 @@ class RLBench_dataset_VP(RLBench_dataset):
         self.numpose = None # the number of key point
         
         # augmentation
-        if cfg.DATASET.RGB_AUGMENTATION:
+        if (cfg.DATASET.RGB_AUGMENTATION) and (mode == 'train'):
             self.img_trans = imageaug_full_transform(cfg)
         else:
             self.img_trans = None
         
-        if cfg.DATASET.DEPTH_AUGMENTATION:
+        if (cfg.DATASET.DEPTH_AUGMENTATION) and (mode == 'train'):
             self.depth_trans = depth_aug(cfg)
         else:
             self.depth_trans = None
@@ -1266,7 +1270,11 @@ class RLBench_dataset_VP(RLBench_dataset):
         print('length of future is {} frame'.format(self.pred_len))
         
         self.seed = 0
-        self.random_len = cfg.DATASET.RLBENCH.RANDOM_LEN 
+
+        if random_len == 0:
+            self.random_len = cfg.DATASET.RLBENCH.RANDOM_LEN
+        else:
+            self.random_len = random_len 
         
         task_names = self.get_task_names(cfg.DATASET.RLBENCH.TASK_LIST)
         self._json_file_name = 'RL_Becnh_dataset_VP_{}_{}{}.json'.format(mode,self.pred_len,task_names)
@@ -1611,12 +1619,12 @@ class RLBench_dataset2(RLBench_dataset):
         self.sequence_index_list = None
 
         # augmentation
-        if cfg.DATASET.RGB_AUGMENTATION:
+        if (cfg.DATASET.RGB_AUGMENTATION) and (mode == 'train'):
             self.img_trans = imageaug_full_transform(cfg)
         else:
             self.img_trans = None
         
-        if cfg.DATASET.DEPTH_AUGMENTATION:
+        if (cfg.DATASET.DEPTH_AUGMENTATION) and (mode == 'train'):
             self.depth_trans = depth_aug(cfg)
         else:
             self.depth_trans = None
@@ -1697,8 +1705,8 @@ class RLBench_dataset2(RLBench_dataset):
                 pickle_data = pickle.load(f)
             
             # get camera info
-            camera_intrinsic = pickle_data.front_intrinsic_matrix
-            camera_extrinsic = pickle_data.front_extrinsic_matrix # world2camera
+            camera_intrinsic = pickle_data['front_intrinsic_matrix']
+            camera_extrinsic = pickle_data['front_extrinsic_matrix'] # world2camera
             
             # get gripper info
             gripper_pos, gripper_matrix, gripper_open = self.get_gripper(pickle_data)
@@ -1741,13 +1749,73 @@ class RLBench_dataset2(RLBench_dataset):
         input_dict['inv_mtx'] = torch.tensor(np.linalg.inv(camera_intrinsic))
         
         return input_dict
+    
+    def add_data(self, folder_path, cfg):
+        """
+        output:
+        data_list: list
+        data_list = [data_dict * n]
+        data_dict = {
+        'image_path': path
+        'pickle_path': path
+        'end_index': index of data where task will finish
+        'start_index': index of date where task start
+        }
+        """
+        # for data preparation
+        self.data_list = []
+        self.index_list = []
+        self.sequence_index_list = []
+        index = 0
+        
+        task_list = os.listdir(folder_path) # get task list
+        task_list.sort() # sort task
+        for task_name in task_list:
+            if 'all' in cfg.DATASET.RLBENCH.TASK_LIST:
+                pass
+            elif task_name not in cfg.DATASET.RLBENCH.TASK_LIST:
+                continue
+
+            if task_name == 'json':
+                continue
+
+            if 'RL_Becnh_dataset' in task_name:
+                continue
+            
+            task_path = os.path.join(folder_path, task_name)
+            
+            sequence_list = os.listdir(task_path)
+            sequence_list.sort()
+            for sequence_index in sequence_list:
+                start_index = index
+                image_folder_path = os.path.join(task_path, sequence_index, 'image')
+                pickle_folder_path = os.path.join(task_path, sequence_index, 'base_data')
+                
+                image_list = os.listdir(image_folder_path)
+                image_list.sort()
+                pickle_list = os.listdir(pickle_folder_path)
+                pickle_list.sort()
+                for image_name, pickle_name in zip(image_list, pickle_list):
+                    data_dict = {}
+                    data_dict['image_path'] = os.path.join(image_folder_path, image_name)
+                    data_dict['pickle_path'] = os.path.join(pickle_folder_path, pickle_name)
+                    data_dict['start_index'] = start_index
+                    data_dict['end_index'] = start_index + len(image_list) - 1
+                    
+                    self.data_list.append(data_dict)
+                    if index <= start_index + (len(image_list) - 1) - self.pred_len:
+                        self.index_list.append(index)
+                        
+                    index += 1
+            
+                self.sequence_index_list.append([start_index, start_index + len(image_list) - 1])
 
     def get_gripper(self, pickle_data):
-        gripper_pos_WorldCor = np.append(pickle_data.gripper_pose[:3], 1)
-        gripper_matrix_WorldCor = pickle_data.gripper_matrix
-        gripper_open = pickle_data.gripper_open
+        gripper_pos_WorldCor = np.append(pickle_data['gripper_pose'][:3], 1)
+        gripper_matrix_WorldCor = pickle_data['gripper_matrix']
+        gripper_open = pickle_data['gripper_open']
         
-        world2camera_matrix = pickle_data.front_extrinsic_matrix
+        world2camera_matrix = pickle_data['front_extrinsic_matrix']
         camera2world_matrix = np.linalg.inv(world2camera_matrix)
         
         gripper_pose_CamCor = np.dot(camera2world_matrix, gripper_pos_WorldCor)
@@ -1757,7 +1825,7 @@ class RLBench_dataset2(RLBench_dataset):
 
 class RLBench_dataset2_VP(RLBench_dataset2):
 
-    def __init__(self,cfg,save_dataset=False,mode='train'):
+    def __init__(self,cfg,save_dataset=False,mode='train',random_len=0):
         """
         output: image_t,posture_t,image_t+1,posture_t+1
         
@@ -1776,12 +1844,12 @@ class RLBench_dataset2_VP(RLBench_dataset2):
         self.numpose = None # the number of key point
         
         # augmentation
-        if cfg.DATASET.RGB_AUGMENTATION:
+        if (cfg.DATASET.RGB_AUGMENTATION) and (mode == 'train'):
             self.img_trans = imageaug_full_transform(cfg)
         else:
             self.img_trans = None
         
-        if cfg.DATASET.DEPTH_AUGMENTATION:
+        if (cfg.DATASET.DEPTH_AUGMENTATION) and (mode == 'train'):
             self.depth_trans = depth_aug(cfg)
         else:
             self.depth_trans = None
@@ -1792,7 +1860,11 @@ class RLBench_dataset2_VP(RLBench_dataset2):
         print('length of future is {} frame'.format(self.pred_len))
         
         self.seed = 0
-        self.random_len = cfg.DATASET.RLBENCH.RANDOM_LEN 
+
+        if random_len == 0:
+            self.random_len = cfg.DATASET.RLBENCH.RANDOM_LEN
+        else:
+            self.random_len = random_len 
         
         task_names = self.get_task_names(cfg.DATASET.RLBENCH.TASK_LIST)
         self._json_file_name = 'RL_Becnh_dataset_VP_{}_{}{}.json'.format(mode,self.pred_len,task_names)
@@ -1870,8 +1942,8 @@ class RLBench_dataset2_VP(RLBench_dataset2):
                 pickle_data = pickle.load(f)
             
             # get camera info
-            camera_intrinsic = pickle_data.front_intrinsic_matrix
-            camera_extrinsic = pickle_data.front_extrinsic_matrix # world2camera
+            camera_intrinsic = pickle_data['front_intrinsic_matrix']
+            camera_extrinsic = pickle_data['front_extrinsic_matrix'] # world2camera
             
             # get gripper info
             gripper_pos, gripper_matrix, gripper_open = self.get_gripper(pickle_data)
@@ -1957,7 +2029,7 @@ class RLBench_dataset2_VP(RLBench_dataset2):
             for sequence_index in sequence_list:
                 start_index = index
                 image_folder_path = os.path.join(task_path, sequence_index, 'image')
-                pickle_folder_path = os.path.join(task_path, sequence_index, 'pickle')
+                pickle_folder_path = os.path.join(task_path, sequence_index, 'base_data')
                 
                 image_list = os.listdir(image_folder_path)
                 image_list.sort()

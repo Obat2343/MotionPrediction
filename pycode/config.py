@@ -47,13 +47,13 @@ _C.DATASET.RLBENCH.RANDOM_LEN = 3
 
 """
 task list
-CloseJar, 
-OpenGrill, OpenJar, OpenWineBottle,
-PickUpCup,
-PutKnifeOnChoppingBoard, PutRubbishInBin,
-StackWine, 
-TakePlateOffColoredDishRack,
-WipeDesk
+RLBench1
+CloseJar, OpenGrill, OpenJar, OpenWineBottle, PickUpCup, PutKnifeOnChoppingBoard, PutRubbishInBin,
+StackWine, TakePlateOffColoredDishRack, WipeDesk
+
+RLBench2
+PickUpCup, PutKnifeOnChoppingBoard, PutRubbishInBin,
+StackWine, TakePlateOffColoredDishRack
 """
 
 ###############################

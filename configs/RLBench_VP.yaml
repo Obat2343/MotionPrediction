@@ -1,10 +1,10 @@
 PRED_LEN: 1
 DATASET:
-  NAME: 'RLBench' # HMD, RLBench
+  NAME: 'RLBench2' # HMD, RLBench
   RLBENCH:
-    TASK_LIST: ['all']
+    TASK_LIST: ['PutRubbishInBin']
 BASIC:
-  NUM_GPU: 3
+  NUM_GPU: 1
   BATCH_SIZE: 6
 LOAD_MODEL: 'all'
 LOSS:
