@@ -332,7 +332,7 @@ class sequence_hourglass(torch.nn.Module):
                     output_image = inputs['rgb'][:,sequence_id+2].to(self.device) # rgb loss will be 0
                 if mp_mode == 2: # input output image
                     if self.use_video_pred_model:
-                        video_inputs = self.make_videomodel_input(inputs, outputs, outputs_history_dict, sequence_id, vp_mode)
+                        video_inputs = self.make_videomodel_input(inputs, outputs, sequence_id, vp_mode)
                         video_outputs = self.video_pred_model(video_inputs)
                         output_image = [video_outputs['rgb']]
                     else:
@@ -410,7 +410,7 @@ class sequence_hourglass(torch.nn.Module):
         data_dict['inv_mtx'] = inputs['inv_mtx'].float().to(self.device)
         return data_dict
     
-    def make_videomodel_input(self, inputs, outputs, outputs_history_dict, sequence_id, mode=1):
+    def make_videomodel_input(self, inputs, outputs, sequence_id, mode=1):
         '''
         output:
         dictionary{
@@ -420,16 +420,33 @@ class sequence_hourglass(torch.nn.Module):
         mode1: input output heatmap
         mode2: input dataset heatmap
         '''
-        index_list = [sequence_id, sequence_id+1, sequence_id+3]
-        rgb = inputs['rgb'][:,index_list].to(self.device)
-        
         if mode == 1:
             t1_heatmap = torch.unsqueeze(outputs['heatmap'][0][-1],1)
         elif mode == 2:
-            print('mode == 2')
-            t1_heatmap = inputs['pose'][:,sequence_id+2:sequence_id+3]
+            t1_heatmap = inputs['pose'][:,sequence_id+2:sequence_id+3].to(self.device)
 
-        pose_heatmap = inputs['pose'][:,index_list].to(self.device)
-        pose_heatmap = torch.cat((pose_heatmap[:,:2], t1_heatmap, pose_heatmap[:,2:]),1)
-
-        return {'rgb':rgb, 'pose':pose_heatmap}
+        if self.video_pred_model.mode == 'pcf':
+            index_list = [sequence_id, sequence_id+1, sequence_id+3]
+            rgb = inputs['rgb'][:,index_list].to(self.device)
+            pose_heatmap = inputs['pose'][:,:4].to(self.device)
+            pose_heatmap = torch.cat((pose_heatmap[:,:2], t1_heatmap, pose_heatmap[:,3:]), 1)
+            pose_xyz = inputs['pose_xyz'][:,:4].to(self.device)
+            rotation_matrix = inputs['rotation_matrix'][:,:4].to(self.device)
+            grasp = inputs['grasp'][:,:4].to(self.device)
+        elif self.video_pred_model.mode == 'pc':
+            index_list = [sequence_id, sequence_id+1]
+            rgb = inputs['rgb'][:,index_list].to(self.device)
+            pose_heatmap = inputs['pose'][:,:3].to(self.device)
+            pose_heatmap = torch.cat((pose_heatmap[:,:2], t1_heatmap), 1)
+            pose_xyz = inputs['pose_xyz'][:,:3].to(self.device)
+            rotation_matrix = inputs['rotation_matrix'][:,:3].to(self.device)
+            grasp = inputs['grasp'][:,:3].to(self.device)
+        elif self.video_pred_model.mode == 'c':
+            rgb = inputs['rgb'][:,1].to(self.device)
+            pose_heatmap = inputs['pose'][:,1:3].to(self.device)
+            pose_heatmap = torch.cat((pose_heatmap[:,:1], t1_heatmap), 1)
+            pose_xyz = inputs['pose_xyz'][:,1:3].to(self.device)
+            rotation_matrix = inputs['rotation_matrix'][:,1:3].to(self.device)
+            grasp = inputs['grasp'][:,1:3].to(self.device)
+            
+        return {'rgb':rgb, 'pose':pose_heatmap, 'pose_xyz':pose_xyz, 'rotation_matrix':rotation_matrix, 'grasp':grasp}

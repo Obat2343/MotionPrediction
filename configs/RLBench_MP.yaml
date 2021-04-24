@@ -1,12 +1,12 @@
-MP_MODEL_NAME: 'hourglass' # hourglass, sequence_hourglass
-PRED_LEN: 1
+MP_MODEL_NAME: 'sequence_hourglass' # hourglass, sequence_hourglass
+PRED_LEN: 4
 DATASET:
   NAME: 'RLBench2' # HMD, RLBench
   RLBENCH:
     TASK_LIST: ['PickUpCup']
 BASIC:
-  NUM_GPU: 1
-  BATCH_SIZE: 3
+  NUM_GPU: 2
+  BATCH_SIZE: 2
 LOAD_MODEL: 'all'
 HOURGLASS:
   NUM_BLOCK: 2
@@ -15,11 +15,14 @@ HOURGLASS:
   PRED_RGB: False
   PRED_ROTATION: True
   PRED_GRASP: True
-  INPUT_PAST: False
+  INPUT_PAST: True
   INPUT_ROTATION: True
   INPUT_GRASP: True
 VIDEO_HOUR:
   MODE: 'pcf'
+  INPUT_Z: True
+  INPUT_ROTATION: True
+  INPUT_GRASP: True
 SEQUENCE_HOUR:
   MODE: 2
 LOSS:

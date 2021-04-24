@@ -63,8 +63,10 @@ def build_model_MP(cfg):
         output_dim = 1
 
     if cfg.MP_MODEL_NAME == 'hourglass':
+        print('use hourglass')
         model = stacked_hourglass_model(cfg, output_dim=output_dim)
     elif cfg.MP_MODEL_NAME == 'sequence_hourglass':
+        print('use sequence hourglass')
         model = sequence_hourglass(cfg, output_dim=output_dim)
     return model
 
