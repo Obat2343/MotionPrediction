@@ -43,6 +43,7 @@ _C.DATASET.RLBENCH = CN()
 _C.DATASET.RLBENCH.TASK_LIST = ['all'] # e.g. ['CloseJar'] 
 _C.DATASET.RLBENCH.PATH = os.path.abspath('../dataset/RLBench')
 _C.DATASET.RLBENCH.PATH2 = os.path.abspath('../dataset/RLBench2')
+_C.DATASET.RLBENCH.PATH3 = os.path.abspath('../dataset/RLBench3')
 _C.DATASET.RLBENCH.RANDOM_LEN = 3
 
 """
@@ -268,10 +269,11 @@ _C.VIDEO_HOUR.DEPTH = False
 _C.VIDEO_HOUR.INPUT_Z = False
 _C.VIDEO_HOUR.INPUT_ROTATION = False
 _C.VIDEO_HOUR.INPUT_GRASP = False
-_C.VIDEO_HOUR.LAST_LAYER = 'normal' # normal, residual, heatmap
+_C.VIDEO_HOUR.ONLY_RGB_AUXILIARY = False
 _C.VIDEO_HOUR.MIN_FILTER_NUM = 64
 _C.VIDEO_HOUR.MAX_FILTER_NUM = 256
 _C.VIDEO_HOUR.NUM_DOWN = 4
+_C.VIDEO_HOUR.WO_RESIDUAL = []
 
 ##### DISCRIMINATOR ######
 _C.DISCRIMINATOR = CN()

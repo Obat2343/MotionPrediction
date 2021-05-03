@@ -1181,10 +1181,7 @@ class RLBench_dataset(Dataset_Template):
 
     def transform_depth(self, depth_image):
         if self.ToTensor != None:
-            depth_image = torch.unsqueeze(torch.from_numpy(np.array(depth_image, np.int32)) / 1000.0, 0)
-            # depth_image = self.ToTensor(depth_image) / 1000.0
-            #depth_image = self.ToTensor(depth_image)
-            #depth_image = depth_image / 1000.0
+            depth_image = torch.unsqueeze(torch.tensor(np.array(depth_image), dtype=torch.float), 0)
         if self.depth_trans:
             depth_image = self.depth_trans(depth_image)
         return depth_image
@@ -2187,3 +2184,247 @@ class RLBench_dataset2_test(RLBench_dataset2):
         input_dict['action_name'] = task_name
 
         return input_dict
+
+# temporally add RLBench dataset2
+# remove RLBench_dataset and replaced with this
+class RLBench_dataset3(RLBench_dataset):
+
+    def __init__(self,cfg,save_dataset=False,mode='train'):
+        """
+        output: image_t,posture_t,image_t+1,posture_t+1
+        
+        # variable
+        data_root_dir: path to root directory of data
+        target_key: key of data in motive csv data. (e.g. hand)
+        img_trans: transform(torch.transform) list
+        seed: seed for data augmentation
+        """
+        data_root_dir = os.path.join(cfg.DATASET.RLBENCH.PATH3, mode)
+
+        self.data_list = None
+        self.index_list = None
+        self.sequence_index_list = None
+        self.size = None
+        self.numpose = None # the number of key point
+
+        # augmentation
+        if (cfg.DATASET.RGB_AUGMENTATION) and (mode == 'train'):
+            self.img_trans = imageaug_full_transform(cfg)
+        else:
+            self.img_trans = None
+        
+        if (cfg.DATASET.DEPTH_AUGMENTATION) and (mode == 'train'):
+            self.depth_trans = depth_aug(cfg)
+        else:
+            self.depth_trans = None
+        
+        self.use_front_depth = cfg.HOURGLASS.INPUT_DEPTH
+        self.pred_len = cfg.PRED_LEN
+        print('length of future is {} frame'.format(self.pred_len))
+        
+        self.seed = 0
+        
+        task_names = self.get_task_names(cfg.DATASET.RLBENCH.TASK_LIST)
+        self._json_file_name = 'RL_Becnh_dataset_{}_{}{}.json'.format(mode,self.pred_len,task_names)
+        json_path = os.path.join(data_root_dir, 'json', self._json_file_name)
+        if not os.path.exists(json_path) or save_dataset:
+            # create dataset
+            print('There is no json data')
+            print('create json data')
+            self.add_data(data_root_dir, cfg)
+            print('done')
+            
+            # save json data
+            print('save json data')
+            os.makedirs(os.path.join(data_root_dir, 'json'), exist_ok=True)
+            with open(json_path, 'w') as f:
+                json.dump([self.data_list, self.index_list],f,indent=4)
+            print('done')
+        else:
+            # load json data
+            print('load json data')
+            with open(json_path) as f:
+                [self.data_list, self.index_list] = json.load(f)
+
+        self.get_image_size()
+        self.ToTensor = transforms.ToTensor()
+        
+    def __len__(self):
+        return len(self.index_list)
+
+    def __getitem__(self, data_index):
+        # get image
+        # print('i:{}'.format(i))
+
+        index = self.index_list[data_index]
+        data_dict = self.data_list[index]
+        
+        start_index = data_dict['start_index']
+        end_index = data_dict['end_index']
+        input_dict = {}
+
+        if index - 1 >= start_index:
+            past_index = index - 1
+        else:
+            past_index = start_index
+        index_list = [past_index, index]
+
+        for i in range(self.pred_len):
+            next_index = index + (i+1)
+            if next_index > end_index:
+                next_index = end_index
+            index_list.append(next_index)
+        input_dict['index_list'] = torch.tensor(index_list)
+        input_dict['pred_len'] = self.pred_len
+
+        for i,index in enumerate(index_list):
+            data_dict = self.data_list[index]
+            
+            # get rgb image
+            rgb_path = os.path.join(data_dict['image_dir'], "front_rgb_{}.png".format(data_dict['filename']))
+            rgb_image = Image.open(rgb_path)
+            image_size = rgb_image.size
+            rgb_image = self.transform_rgb(rgb_image, index)
+
+            # get depth image
+            if self.use_front_depth:
+                depth_path = os.path.join(data_dict['image_dir'], "front_depth_{}.pickle".format(data_dict['filename']))
+                with open(depth_path, 'rb') as f:
+                    depth_image = pickle.load(f)
+                depth_image = self.transform_depth(depth_image)
+
+            # get pickle data
+            pickle_path = data_dict['pickle_path']
+            with open(pickle_path, 'rb') as f:
+                pickle_data = pickle.load(f)
+            
+            # get camera info
+            camera_intrinsic = pickle_data['front_intrinsic_matrix']
+            camera_extrinsic = pickle_data['front_extrinsic_matrix'] # world2camera
+            
+            # get gripper info
+            gripper_pos, gripper_matrix, gripper_open = self.get_gripper(pickle_data)
+            
+            # get uv cordinate and pose image
+            pos_image, uv, uv_mask = self.transform_pos2image(gripper_pos, camera_intrinsic, image_size)
+            
+            # convert position data
+            gripper_pos,gripper_pos_mask = self.transform_pos(gripper_pos)
+
+            if i == 0:
+                rgb_batch = torch.unsqueeze(rgb_image, 0)
+                pose_image_batch = torch.unsqueeze(pos_image, 0)
+                pose_batch = torch.unsqueeze(gripper_pos, 0)
+                pose_mask_batch = torch.unsqueeze(gripper_pos_mask, 0)
+                rotation_batch = torch.unsqueeze(gripper_matrix, 0)
+                grasp_batch = torch.unsqueeze(gripper_open, 0)
+                uv_batch = torch.unsqueeze(uv, 0)
+                uv_mask_batch = torch.unsqueeze(uv_mask, 0)
+                if self.use_front_depth:
+                    depth_batch = torch.unsqueeze(depth_image, 0)
+            else:
+                rgb_batch = torch.cat((rgb_batch, torch.unsqueeze(rgb_image, 0)), 0)
+                pose_image_batch = torch.cat((pose_image_batch, torch.unsqueeze(pos_image, 0)), 0)
+                pose_batch = torch.cat((pose_batch, torch.unsqueeze(gripper_pos, 0)), 0)
+                pose_mask_batch = torch.cat((pose_mask_batch, torch.unsqueeze(gripper_pos_mask, 0)), 0)
+                rotation_batch = torch.cat((rotation_batch, torch.unsqueeze(gripper_matrix, 0)), 0)
+                grasp_batch = torch.cat((grasp_batch, torch.unsqueeze(gripper_open, 0)), 0)
+                uv_batch = torch.cat((uv_batch, torch.unsqueeze(uv, 0)), 0)
+                uv_mask_batch = torch.cat((uv_mask_batch, torch.unsqueeze(uv_mask, 0)), 0)
+                if self.use_front_depth:
+                    depth_batch = torch.cat((depth_batch, torch.unsqueeze(depth_image, 0)), 0)
+
+        input_dict['rgb'] = rgb_batch
+        input_dict['pose'] = pose_image_batch
+        input_dict['pose_xyz'] = pose_batch
+        input_dict['pose_xyz_mask'] = pose_mask_batch
+        input_dict['rotation_matrix'] = rotation_batch
+        input_dict['grasp'] = grasp_batch
+        input_dict['uv'] = uv_batch
+        input_dict['uv_mask'] = uv_mask_batch
+        input_dict['index_list'] = index_list
+        input_dict['mtx'] = torch.tensor(camera_intrinsic)
+        input_dict['inv_mtx'] = torch.tensor(np.linalg.inv(camera_intrinsic))
+        if self.use_front_depth:
+            input_dict['depth'] = depth_batch
+
+        return input_dict
+    
+    def add_data(self, folder_path, cfg):
+        """
+        output:
+        data_list: list
+        data_list = [data_dict * n]
+        data_dict = {
+        'image_path': path
+        'pickle_path': path
+        'end_index': index of data where task will finish
+        'start_index': index of date where task start
+        }
+        """
+        # for data preparation
+        self.data_list = []
+        self.index_list = []
+        self.sequence_index_list = []
+        index = 0
+        
+        task_list = os.listdir(folder_path) # get task list
+        task_list.sort() # sort task
+        for task_name in task_list:
+            if 'all' in cfg.DATASET.RLBENCH.TASK_LIST:
+                pass
+            elif task_name not in cfg.DATASET.RLBENCH.TASK_LIST:
+                continue
+
+            if task_name == 'json':
+                continue
+
+            if 'RL_Becnh_dataset' in task_name:
+                continue
+            
+            task_path = os.path.join(folder_path, task_name)
+            
+            sequence_list = os.listdir(task_path)
+            sequence_list.sort()
+            for sequence_index in sequence_list:
+                start_index = index
+                image_folder_path = os.path.join(task_path, sequence_index, 'image')
+                pickle_folder_path = os.path.join(task_path, sequence_index, 'base_data')
+                pickle_list = os.listdir(pickle_folder_path)
+                pickle_list.sort()
+                for pickle_name in pickle_list:
+                    head, ext = os.path.splitext(pickle_name)
+                    data_dict = {}
+                    data_dict['image_dir'] = image_folder_path
+                    data_dict['filename'] = os.path.join(head)
+                    data_dict['pickle_path'] = os.path.join(pickle_folder_path, pickle_name)
+                    data_dict['start_index'] = start_index
+                    data_dict['end_index'] = start_index + len(pickle_list) - 1
+                    
+                    self.data_list.append(data_dict)
+                    if index <= start_index + (len(pickle_list) - 1) - self.pred_len:
+                        self.index_list.append(index)
+                        
+                    index += 1
+            
+                self.sequence_index_list.append([start_index, start_index + len(pickle_list) - 1])
+
+    def get_gripper(self, pickle_data):
+        gripper_pos_WorldCor = np.append(pickle_data['gripper_pose'][:3], 1)
+        gripper_matrix_WorldCor = pickle_data['gripper_matrix']
+        gripper_open = pickle_data['gripper_open']
+        
+        world2camera_matrix = pickle_data['front_extrinsic_matrix']
+        camera2world_matrix = np.linalg.inv(world2camera_matrix)
+        
+        gripper_pose_CamCor = np.dot(camera2world_matrix, gripper_pos_WorldCor)
+        gripper_matrix_CamCor = np.dot(camera2world_matrix, gripper_matrix_WorldCor)
+        
+        return torch.tensor(gripper_pose_CamCor[:3], dtype=torch.float), torch.tensor(gripper_matrix_CamCor[:3,:3], dtype=torch.float), torch.tensor(gripper_open, dtype=torch.float)
+    
+    def get_image_size(self):
+        data_dict = self.data_list[0]
+        img_path = os.path.join(data_dict['image_dir'], "front_rgb_{}.png".format(data_dict['filename']))
+        img = Image.open(img_path)
+        w, h = img.size
+        self.size = (h , w)

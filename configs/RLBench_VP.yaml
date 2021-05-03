@@ -2,7 +2,7 @@ PRED_LEN: 1
 DATASET:
   NAME: 'RLBench2' # HMD, RLBench
   RLBENCH:
-    TASK_LIST: ['PutRubbishInBin']
+    TASK_LIST: ['PickUpCup']
 BASIC:
   NUM_GPU: 1
   BATCH_SIZE: 6
@@ -17,5 +17,7 @@ VIDEO_HOUR:
   INPUT_Z: True
   INPUT_ROTATION: True
   INPUT_GRASP: True
+  WO_RESIDUAL: []
+  ONLY_RGB_AUXILIARY: True
 SEQUENCE_HOUR:
   MODE: 2

@@ -9,7 +9,7 @@ import torch_optimizer as new_optim
 from collections import OrderedDict
 from torchvision import datasets, models, transforms
 from PIL import Image, ImageDraw, ImageOps
-from .dataset import Softargmax_dataset, Softargmax_dataset_VP, Softargmax_dataset_test, RLBench_dataset, RLBench_dataset_VP, RLBench_dataset_test, RLBench_dataset2, RLBench_dataset2_VP
+from .dataset import Softargmax_dataset, Softargmax_dataset_VP, Softargmax_dataset_test, RLBench_dataset, RLBench_dataset_VP, RLBench_dataset_test, RLBench_dataset2, RLBench_dataset2_VP, RLBench_dataset3
 from .model.Hourglass import stacked_hourglass_model, sequence_hourglass
 
 def build_dataset_MP(cfg, save_dataset=False, mode='train'):
@@ -28,6 +28,11 @@ def build_dataset_MP(cfg, save_dataset=False, mode='train'):
             dataset = RLBench_dataset2(cfg, save_dataset=save_dataset, mode=mode)
         elif mode == 'val':
             dataset = RLBench_dataset2(cfg, save_dataset=save_dataset, mode=mode)
+    elif cfg.DATASET.NAME == 'RLBench3':
+        if mode == 'train':
+            dataset = RLBench_dataset3(cfg, save_dataset=save_dataset, mode=mode)
+        elif mode == 'val':
+            dataset = RLBench_dataset3(cfg, save_dataset=save_dataset, mode=mode)
 
     return dataset
 
@@ -59,7 +64,7 @@ def build_dataset_VP(cfg, save_dataset=False, mode='train'):
 def build_model_MP(cfg):
     if cfg.DATASET.NAME == 'HMD':
         output_dim = 21
-    elif (cfg.DATASET.NAME == 'RLBench') or (cfg.DATASET.NAME == 'RLBench2'):
+    elif (cfg.DATASET.NAME == 'RLBench') or (cfg.DATASET.NAME == 'RLBench2') or (cfg.DATASET.NAME == 'RLBench3'):
         output_dim = 1
 
     if cfg.MP_MODEL_NAME == 'hourglass':

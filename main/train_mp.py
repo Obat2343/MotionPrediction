@@ -3,7 +3,6 @@ import sys
 import time
 import datetime
 import argparse
-import tensorboardX
 import torch
 import yaml
 import shutil

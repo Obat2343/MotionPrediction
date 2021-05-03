@@ -58,10 +58,10 @@ class Encoder(nn.Module):
         # z = self.conv_z(out)
         return out
 
-class Decoder(nn.Module):
+class Decoder_UNet(nn.Module):
 
-    def __init__(self, input_dim=3, filter_size=3, min_filter_num=64, max_filter_num_image=256, max_filter_num_pose=128, last_activation='none', deformable=False, activation='relu', norm='none', downscale_num = 4):
-        super(Decoder, self).__init__()
+    def __init__(self, input_dim=3, filter_size=3, min_filter_num=64, max_filter_num_image=256, max_filter_num_pose=128, deformable=False, activation='relu', norm='none', downscale_num = 4):
+        super(Decoder_UNet, self).__init__()
         self.downscale_num = downscale_num
 
         res_blocks = []
@@ -102,7 +102,6 @@ class Decoder(nn.Module):
         self.sigmoid = nn.Sigmoid()
         self.rgb_mask = nn.Conv2d(min_filter_num, 1, filter_size, 1, 1)
         self.depth_mask = nn.Conv2d(min_filter_num, 1, filter_size, 1, 1)
-        self.last_activation = last_activation
 
     def forward(self, outs):
         h0 = self.first_upsample(torch.cat([out.pop() for out in outs], 1))
@@ -119,12 +118,76 @@ class Decoder(nn.Module):
 
         x = self.conv(h0)
         
-        if self.last_activation == 'tanh':
-            x = self.tanh(x)
-        elif self.last_activation == 'relu':
-            x = self.relu(x)
-        
         return x, rgb_mask, depth_mask
+
+class Decoder_UNet_C(nn.Module):
+
+    def __init__(self, input_dim=3, filter_size=3, min_filter_num=64, max_filter_num_image=256, max_filter_num_pose=128, deformable=False, activation='relu', norm='none', downscale_num=4, wo_residual=[]):
+        super(Decoder_UNet_C, self).__init__()
+        self.downscale_num = downscale_num
+        self.wo_residual_list = wo_residual
+
+        res_blocks = []
+        compressor = []
+        filters = []
+
+        current_filter_num = min_filter_num
+        for i in range(self.downscale_num - 1):
+            next_filter_num_image = min(current_filter_num * 2, max_filter_num_image)
+            next_filter_num_pose = min(current_filter_num * 2, max_filter_num_pose)
+
+            compressor_input_filter_num = next_filter_num_image + next_filter_num_pose
+            compressor_output_filter_num = max(next_filter_num_image, next_filter_num_pose)
+            filters.append(compressor_output_filter_num)
+            compressor.append(ConvBlock(compressor_input_filter_num, compressor_output_filter_num, 3, 1, 1, activation=activation, norm=norm))
+            current_filter_num *= 2
+        filters.append(compressor_output_filter_num)
+
+        for i in range(self.downscale_num - 1):
+            if i in self.wo_residual_list:
+                resnet_input_filter_num = filters[i+1]
+            else:
+                resnet_input_filter_num = filters[i+1] + filters[i]
+
+            resnet_output_filter_num = filters[i]
+            res_blocks.append(ResUpsampleBlock(resnet_input_filter_num, resnet_output_filter_num, 3, activation=activation, norm=norm))
+
+        res_blocks.reverse()
+        compressor.reverse()
+        
+        """
+        pose filter 128, 128, 128
+        image filter 128, 256, 256
+        compressor_input_filter 256, 384, 384
+        compressor_input_filter = pose_filter + image_filter
+
+        compressor_output_filter 128, 256, 256
+
+        res_input_filter 128+128, 384, 512
+        res_input_filter = res_output_filter(t+1) + compressor_output_filter
+
+        res_output_filter 128, 256, 256
+
+        res_actual 256+256 256+256 256+128
+        """
+        self.first_upsample = ResUpsampleBlock(compressor_input_filter_num, compressor_output_filter_num, 3, activation=activation, norm=norm) # TODO change this
+        self.res_blocks = nn.ModuleList(res_blocks)
+        self.compressor = nn.ModuleList(compressor)
+        self.conv = ConvBlock(filters[0], input_dim, filter_size, 1, 1, activation='none', norm='none')
+
+    def forward(self, outs):
+        h0 = self.first_upsample(torch.cat([out.pop() for out in outs], 1)) # 128 + 256 -> 256
+        for i in range(len(self.res_blocks)):
+            if (len(self.res_blocks) - 1) - i in self.wo_residual_list:
+                _ = [out.pop() for out in outs]
+            else:
+                concat_compress_data = self.compressor[i](torch.cat([out.pop() for out in outs], 1))
+                h0 = torch.cat([concat_compress_data, h0], 1)
+            h0 = self.res_blocks[i](h0)
+        x = self.conv(h0)
+        
+        return x
+
 
 class VIDEO_HOURGLASS(nn.Module):
 
@@ -136,6 +199,7 @@ class VIDEO_HOURGLASS(nn.Module):
         self.input_z = cfg.VIDEO_HOUR.INPUT_Z
         self.input_rotation = cfg.VIDEO_HOUR.INPUT_ROTATION
         self.input_grasp = cfg.VIDEO_HOUR.INPUT_GRASP
+        self.only_rgb_aux = cfg.VIDEO_HOUR.ONLY_RGB_AUXILIARY
 
         basic_dim = 3 + int(self.use_depth)
 
@@ -151,7 +215,10 @@ class VIDEO_HOURGLASS(nn.Module):
 
         if self.mode == 'pcf':
             encoder_input_dim = basic_dim * 3
-            pose_encoder_dim = pose_dim * 4
+            if self.only_rgb_aux:
+                pose_encoder_dim = pose_dim * 3
+            else:
+                pose_encoder_dim = pose_dim * 4
         elif self.mode == 'pc':
             encoder_input_dim = basic_dim * 2
             pose_encoder_dim = pose_dim * 3
@@ -166,12 +233,17 @@ class VIDEO_HOURGLASS(nn.Module):
 
         self.img_encoder = Encoder(input_dim=encoder_input_dim, filter_size=filter_size, min_filter_num=min_filter_num, max_filter_num=max_filter_num, downscale_num=cfg.VIDEO_HOUR.NUM_DOWN)
         self.pose_encoder = Encoder(input_dim=pose_encoder_dim, filter_size=filter_size, min_filter_num=min_filter_num, max_filter_num=256, downscale_num=cfg.VIDEO_HOUR.NUM_DOWN)
-        self.decoder = Decoder(input_dim=decoder_output_dim, min_filter_num=min_filter_num, max_filter_num_image=256, max_filter_num_pose=256, last_activation='none', downscale_num=cfg.VIDEO_HOUR.NUM_DOWN)
-
-        self.last = cfg.VIDEO_HOUR.LAST_LAYER
+        self.decoder = Decoder_UNet_C(input_dim=decoder_output_dim, min_filter_num=min_filter_num, max_filter_num_image=256, max_filter_num_pose=256, downscale_num=cfg.VIDEO_HOUR.NUM_DOWN, wo_residual=cfg.VIDEO_HOUR.WO_RESIDUAL)
+        # self.decoder = Decoder_UNet(input_dim=decoder_output_dim, min_filter_num=min_filter_num, max_filter_num_image=256, max_filter_num_pose=256, downscale_num=cfg.VIDEO_HOUR.NUM_DOWN)
 
     def forward(self, inputs):
-        RGB, POSE = inputs['rgb'], inputs['pose']
+        if self.only_rgb_aux:
+            end_pose_index = 3
+        else:
+            end_pose_index = 4
+
+        RGB, POSE = inputs['rgb'], inputs['pose'][:,:end_pose_index]
+        
         B,S,C,H,W = POSE.shape
         output_dict = {}
 
@@ -185,13 +257,13 @@ class VIDEO_HOURGLASS(nn.Module):
 
         pose_map = []
         if self.input_z:
-            input_z = inputs['pose_xyz'][:,:,2::3] # B,S,C
+            input_z = inputs['pose_xyz'][:,:end_pose_index,2::3] # B,S,C
             input_z = input_z.view(B,-1) # B, S
             input_z = torch.unsqueeze(input_z,2)
             input_z = torch.unsqueeze(input_z,3)
             pose_map.append(POSE * input_z.expand(B,S,H,W))
         if self.input_rotation:
-            input_rotation = inputs['rotation_matrix'][:,:,:2]
+            input_rotation = inputs['rotation_matrix'][:,:end_pose_index,:2]
             input_rotation = input_rotation.view(B,-1,6)
             input_rotation = input_rotation.contiguous().view(B,-1)
             input_rotation = torch.unsqueeze(input_rotation, 2)
@@ -201,7 +273,7 @@ class VIDEO_HOURGLASS(nn.Module):
             heatmap_for_rotation = torch.cat([POSE[:,s:s+1].expand(B,6,H,W) for s in range(S)], 1)
             pose_map.append(heatmap_for_rotation * input_rotation)
         if self.input_grasp:
-            input_grasp = inputs['grasp'].view(B,-1)
+            input_grasp = inputs['grasp'][:,:end_pose_index].view(B,-1)
             input_grasp = torch.unsqueeze(input_grasp, 2)
             input_grasp = torch.unsqueeze(input_grasp, 3)
             pose_map.append(POSE * input_grasp.expand(B,S,H,W))
@@ -212,24 +284,8 @@ class VIDEO_HOURGLASS(nn.Module):
         u = self.img_encoder(RGB.view(B, -1, H, W))
         u0 = self.pose_encoder(POSE.view(B, -1, H, W))
         # d = n0 - n1
-        out, rgb_mask, depth_mask = self.decoder([u, u0])
-        rgb_mask = rgb_mask.repeat(1, 3, 1, 1)
-
-        if self.use_depth:
-            m = torch.cat((rgb_mask, depth_mask), 1)
-        else:
-            m = rgb_mask
-
-        if self.last == 'heatmap':
-            output_dict['rgb'] = out * m + BASE_IMAGE * (1 - m)
-        elif self.last == 'residual':
-            output_dict['rgb'] = BASE_IMAGE - out
-        elif self.last == 'normal':
-            output_dict['rgb'] = out
-
-        output_dict['heatmap'] = rgb_mask
-        output_dict['depth_heatmap'] = depth_mask
-        output_dict['diff_img'] = out
+        out = self.decoder([u, u0])
+        output_dict['rgb'] = out
         
         return output_dict
         # return out * m + x * (1 - m), w, out
