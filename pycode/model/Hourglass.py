@@ -51,9 +51,12 @@ class stacked_hourglass_model(torch.nn.Module):
 
         rotation_channel = 6 * self.pred_len
         grasp_channel = 1 * self.pred_len
+        trajectory_channel = 1 # TODO multiply num pose?
+
         self.rgb_pred = cfg.HOURGLASS.PRED_RGB
         self.rotation_pred = cfg.HOURGLASS.PRED_ROTATION
         self.grasp_pred = cfg.HOURGLASS.PRED_GRASP
+        self.trajectory_pred = cfg.HOURGLASS.PRED_TRAJECTORY
 
         # loss_option
         self.intermediate_loss = cfg.HOURGLASS.INTERMEDIATE_LOSS 
@@ -101,6 +104,10 @@ class stacked_hourglass_model(torch.nn.Module):
         if self.rgb_pred:
             self.rgb_layer_list = torch.nn.ModuleList([ConvBlock(base_filter, 3, activation='none', norm='none') for _ in range(self.num_hourglass)])
             self.merge_rgb_list = torch.nn.ModuleList([ConvBlock(3, base_filter, 1, 1, 0, activation='none', norm='none') for _ in range(self.num_hourglass - 1)])
+
+        if self.trajectory_pred:
+            self.trajectory_layer_list = torch.nn.ModuleList([ConvBlock(base_filter, trajectory_channel, activation='none', norm='none') for _ in range(self.num_hourglass)])
+            self.merge_trajectory_list = torch.nn.ModuleList([ConvBlock(trajectory_channel, base_filter, 1, 1, 0, activation='none', norm='none') for _ in range(self.num_hourglass - 1)])
 
         # self.vector_u_map = ConvBlock(base_filter, 21, 3, 1, 1, activation=None, norm=None)
         # self.vector_v_map = ConvBlock(base_filter, 21, 3, 1, 1, activation=None, norm=None)
@@ -186,6 +193,7 @@ class stacked_hourglass_model(torch.nn.Module):
         rotation_list = []
         rgb_list = []
         grasp_list = []
+        trajectory_list = []
         
         # initial conv
         for i in range(len(self.initial_conv)):
@@ -255,17 +263,34 @@ class stacked_hourglass_model(torch.nn.Module):
             if self.rgb_pred:
                 rgb = self.rgb_layer_list[i](x)
 
+            if self.trajectory_pred:
+                trajectory_map = self.trajectory_layer_list[i](x)
+                trajectory_map = torch.sigmoid(trajectory_map)
+
             # feedback output into feature
-            if i < self.num_hourglass - 1:                
+            if i < self.num_hourglass - 1:               
                 heatmap_feature = self.merge_heatmap_list[i](heatmap)
                 depth_feature = self.merge_depth_list[i](depth)
                 merge_feature = self.merge_feature_list[i](x)
+                feature_list = [heatmap_feature, depth_feature, merge_feature] 
+
+                if self.rotation_pred:
+                    rotation_feature = self.merge_rotation_list[i](rotation_map)
+                    feature_list.append(rotation_feature)
+
+                if self.grasp_pred:
+                    grasp_feature = self.merge_grasp_list[i](grasp_map)
+                    feature_list.append(grasp_feature)
+
+                if self.trajectory_pred:
+                    trajectory_feature = self.merge_trajectory_list[i](trajectory_map)
+                    feature_list.append(trajectory_feature)
 
                 if self.rgb_pred:
                     rgb_feature = self.merge_rgb_list[i](rgb)
-                    x = x + merge_feature + heatmap_feature + depth_feature + rgb_feature
-                else:
-                    x = x + merge_feature + heatmap_feature + depth_feature
+                    feature_list.append(rgb_feature)
+                
+                x =  x + sum(feature_list)
 
             # convert data for list data
             if self.pred_len >= 2:
@@ -292,6 +317,8 @@ class stacked_hourglass_model(torch.nn.Module):
                 grasp_list.append(grasp)
             if self.rgb_pred:
                 rgb_list.append(rgb)
+            if self.trajectory_pred:
+                trajectory_list.append(trajectory_map)
 
         if not self.intermediate_loss:
             uv_list, heatmap_list, pose_list = uv_list[-1:], heatmap_list[-1:], pose_list[-1:]
@@ -331,6 +358,8 @@ class stacked_hourglass_model(torch.nn.Module):
             output_dict['rotation'] = rotation_list
         if self.grasp_pred:
             output_dict['grasp'] = grasp_list
+        if self.trajectory_pred:
+            output_dict['trajectory'] = [trajectory_list]
         return output_dict
 
     def uv2xyz(self, uv, inv_mtx, z):

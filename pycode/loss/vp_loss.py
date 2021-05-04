@@ -18,6 +18,8 @@ class Train_Loss_Video(nn.Module):
 
         self.loss_list.append(Mse_sequence_loss(device))
         self.loss_list.append(Mse_sequence_loss_gt_diff(device))
+        if cfg.VIDEO_HOUR.INPUT_DEPTH:
+            self.loss_list.append(Mse_Depth_sequence_loss(device))
 
     def forward(self,inputs,outputs,mode='train'):
         total_loss = torch.tensor(0.,).to(self.device)
@@ -67,7 +69,7 @@ class Mse_sequence_loss(nn.Module):
                 loss = self.loss(pred_rgb, gt_image)
                 loss_list.append(loss)
                 if (mode == 'train') or (mode == 'val'):
-                    loss_dict['additional_info_{}/mse_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = loss.item()
+                    loss_dict['additional_info_{}/mse_t{}_module_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = loss.item()
 
         loss = sum(loss_list) / len(loss_list) 
 
@@ -75,11 +77,46 @@ class Mse_sequence_loss(nn.Module):
         loss_dict['{}/loss'.format(mode)] = loss.item()
 
         loss *= self.weight
-        loss_dict['{}/wegiht_mse'.format(mode)] = loss.item()
+        loss_dict['{}/weight_mse'.format(mode)] = loss.item()
         loss_dict['{}/weight_loss'.format(mode)] = loss.item()
 
         return loss, loss_dict
-    
+
+class Mse_Depth_sequence_loss(nn.Module):
+    def __init__(self,device):
+        super(Mse_sequence_loss, self).__init__()
+        self.loss = torch.nn.MSELoss()
+        self.device = device
+        self.weight = 1.0 # TODO
+
+    def forward(self,inputs,outputs,mode='train'):
+        loss_dict = {}
+        output_image_sequence_list = outputs['depth']
+        if type(output_image_sequence_list) != list:
+            output_image_sequence_list = [[output_image_sequence_list]]
+
+        loss_list = []
+        for sequence_id, pred_rgb_list in enumerate(output_image_sequence_list):
+            gt_image = inputs['depth'][:,2+sequence_id].to(self.device)
+            
+            for intermidiate_id, pred_rgb in enumerate(pred_rgb_list):
+                inverse_intermidiate_id = len(pred_rgb_list) - intermidiate_id - 1
+                loss = self.loss(pred_rgb, gt_image)
+                loss_list.append(loss)
+                if (mode == 'train') or (mode == 'val'):
+                    loss_dict['additional_info_{}/depth_mse_t{}_module_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = loss.item()
+
+        loss = sum(loss_list) / len(loss_list) 
+
+        loss_dict['{}/depth_mse'.format(mode)] = loss.item()
+        loss_dict['{}/loss'.format(mode)] = loss.item()
+
+        loss *= self.weight
+        loss_dict['{}/weight_depth_mse'.format(mode)] = loss.item()
+        loss_dict['{}/weight_loss'.format(mode)] = loss.item()
+
+        return loss, loss_dict
+
 class Mse_sequence_loss_gt_diff(nn.Module):
     def __init__(self,device):
         super(Mse_sequence_loss_gt_diff, self).__init__()
@@ -101,7 +138,7 @@ class Mse_sequence_loss_gt_diff(nn.Module):
                 inverse_intermidiate_id = len(pred_rgb_list) - intermidiate_id - 1
                 loss = self.loss(pred_rgb, gt_image) - self.loss(ref_image,gt_image)
                 loss_list.append(loss)
-                loss_dict['additional_info_{}/mse_t{}_moduel_index_{}_gtdiff'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = loss.item()
+                loss_dict['additional_info_{}/mse_t{}_module_index_{}_gtdiff'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = loss.item()
 
         loss = sum(loss_list) / len(loss_list) 
 

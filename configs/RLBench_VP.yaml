@@ -1,10 +1,10 @@
 PRED_LEN: 1
 DATASET:
-  NAME: 'RLBench2' # HMD, RLBench
+  NAME: 'RLBench3' # HMD, RLBench
   RLBENCH:
     TASK_LIST: ['PickUpCup']
 BASIC:
-  NUM_GPU: 1
+  NUM_GPU: 3
   BATCH_SIZE: 6
 LOAD_MODEL: 'all'
 LOSS:
@@ -14,6 +14,7 @@ LOSS:
     WEIGHT: 0.01
 VIDEO_HOUR:
   MODE: 'pcf'
+  INPUT_DEPTH: False
   INPUT_Z: True
   INPUT_ROTATION: True
   INPUT_GRASP: True

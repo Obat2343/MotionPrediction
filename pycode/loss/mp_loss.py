@@ -20,6 +20,8 @@ class Train_Loss_sequence_hourglass(nn.Module):
             self.loss_list.append(grasp_sequence_loss(cfg,device))
         if cfg.LOSS.RGB:
             self.loss_list.append(Mse_sequence_loss(device))
+        if cfg.HOURGLASS.PRED_TRAJECTORY:
+            self.loss_list.append(Trajectory_sequence_loss(cfg,device))
         
     def forward(self,inputs,outputs,mode='train'):
         total_loss = torch.tensor(0.,).to(self.device)
@@ -251,7 +253,42 @@ class Mse_sequence_loss(nn.Module):
         loss_dict['{}/weight_loss'.format(mode)] = loss.item()
 
         return loss, loss_dict
-    
+
+class Trajectory_sequence_loss(nn.Module):
+    def __init__(self,cfg,device):
+        super(Trajectory_sequence_loss, self).__init__()
+        self.loss = nn.BCELoss()
+        self.device = device
+        self.weight = cfg.LOSS.TRAJECTORY.WEIGHT
+
+    def forward(self,inputs,outputs,mode='train'):
+        loss_dict = {}
+        output_trajectory_sequence_list = outputs['trajectory']
+        if type(output_trajectory_sequence_list) != list:
+            output_image_sequence_list = [[output_trajectory_sequence_list]]
+
+        loss_list = []
+        for sequence_id, pred_trajectory_list in enumerate(output_trajectory_sequence_list):
+            gt_trajectory = inputs['trajectory'][:,2+sequence_id].to(self.device)
+            
+            for intermidiate_id, pred_trajectory in enumerate(pred_trajectory_list):
+                inverse_intermidiate_id = len(pred_trajectory_list) - intermidiate_id - 1
+                loss = self.loss(pred_trajectory, gt_trajectory)
+                loss_list.append(loss)
+                if (mode == 'train') or (mode == 'val'):
+                    loss_dict['additional_info_{}/trajectory_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = loss.item()
+
+        loss = sum(loss_list) / len(loss_list) 
+
+        loss_dict['{}/trajectory'.format(mode)] = loss.item()
+        loss_dict['{}/loss'.format(mode)] = loss.item()
+
+        loss *= self.weight
+        loss_dict['{}/wegiht_trajectory'.format(mode)] = loss.item()
+        loss_dict['{}/weight_loss'.format(mode)] = loss.item()
+
+        return loss, loss_dict
+
 class Mse_sequence_loss_gt_diff(nn.Module):
     def __init__(self,device):
         super(Mse_sequence_loss_gt_diff, self).__init__()

@@ -9,7 +9,7 @@ import torch_optimizer as new_optim
 from collections import OrderedDict
 from torchvision import datasets, models, transforms
 from PIL import Image, ImageDraw, ImageOps
-from .dataset import Softargmax_dataset, Softargmax_dataset_VP, Softargmax_dataset_test, RLBench_dataset, RLBench_dataset_VP, RLBench_dataset_test, RLBench_dataset2, RLBench_dataset2_VP, RLBench_dataset3
+from .dataset import Softargmax_dataset, Softargmax_dataset_VP, Softargmax_dataset_test, RLBench_dataset, RLBench_dataset_VP, RLBench_dataset_test, RLBench_dataset2, RLBench_dataset2_VP, RLBench_dataset3, RLBench_dataset3_VP
 from .model.Hourglass import stacked_hourglass_model, sequence_hourglass
 
 def build_dataset_MP(cfg, save_dataset=False, mode='train'):
@@ -58,6 +58,13 @@ def build_dataset_VP(cfg, save_dataset=False, mode='train'):
             dataset = RLBench_dataset2_VP(cfg, save_dataset=save_dataset, mode=mode)
         elif mode == 'test':
             dataset = RLBench_dataset2_VP(cfg, save_dataset=save_dataset, mode='val', random_len=1)
+    elif cfg.DATASET.NAME == 'RLBench3':
+        if mode == 'train':
+            dataset = RLBench_dataset3_VP(cfg, save_dataset=save_dataset, mode=mode)
+        elif mode == 'val':
+            dataset = RLBench_dataset3_VP(cfg, save_dataset=save_dataset, mode=mode)
+        elif mode == 'test':
+            dataset = RLBench_dataset3_VP(cfg, save_dataset=save_dataset, mode='val', random_len=1)
     
     return dataset
 
@@ -242,6 +249,14 @@ def save_outputs(inputs, outputs, path, index, cfg, mode='train'):
             rotation_images = torch.cat((rotation_image, rotation_gt_image), 0)
             save_rotation_path = os.path.join(path,'{}_rotation_{}_{}.jpg'.format(mode, index, sequence_id))
             torchvision.utils.save_image(rotation_images, save_rotation_path, nrow=cfg.BASIC.BATCH_SIZE)
+        
+        # save trajectory
+        if cfg.HOURGLASS.PRED_TRAJECTORY:
+            trajectory_image = outputs['trajectory'][sequence_id][-1].to('cpu')
+            trajectory_gt = inputs['trajectory'][:,sequence_id+1]
+            trajectory_images = torch.cat((trajectory_image, trajectory_gt), 0)
+            save_trajectory_path = os.path.join(path,'{}_trajectory_{}_{}.jpg'.format(mode, index, sequence_id))
+            torchvision.utils.save_image(trajectory_images, save_trajectory_path, nrow=cfg.BASIC.BATCH_SIZE)
 
 def save_outputs_vp(inputs, outputs, path, index, cfg, mode='train'):
     pred_image = outputs['rgb'].cpu()

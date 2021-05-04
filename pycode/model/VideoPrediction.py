@@ -122,7 +122,7 @@ class Decoder_UNet(nn.Module):
 
 class Decoder_UNet_C(nn.Module):
 
-    def __init__(self, input_dim=3, filter_size=3, min_filter_num=64, max_filter_num_image=256, max_filter_num_pose=128, deformable=False, activation='relu', norm='none', downscale_num=4, wo_residual=[]):
+    def __init__(self, filter_size=3, min_filter_num=64, max_filter_num_image=256, max_filter_num_pose=128, deformable=False, activation='relu', norm='none', downscale_num=4, wo_residual=[], depth=False):
         super(Decoder_UNet_C, self).__init__()
         self.downscale_num = downscale_num
         self.wo_residual_list = wo_residual
@@ -173,7 +173,11 @@ class Decoder_UNet_C(nn.Module):
         self.first_upsample = ResUpsampleBlock(compressor_input_filter_num, compressor_output_filter_num, 3, activation=activation, norm=norm) # TODO change this
         self.res_blocks = nn.ModuleList(res_blocks)
         self.compressor = nn.ModuleList(compressor)
-        self.conv = ConvBlock(filters[0], input_dim, filter_size, 1, 1, activation='none', norm='none')
+        self.conv = ConvBlock(filters[0], 3, filter_size, 1, 1, activation='none', norm='none')
+        if depth:
+            self.depth_conv = ConvBlock(filters[0], 1, filter_size, 1, 1, activation='none', norm='none')
+        else:
+            self.depth_conv = None
 
     def forward(self, outs):
         h0 = self.first_upsample(torch.cat([out.pop() for out in outs], 1)) # 128 + 256 -> 256
@@ -186,8 +190,11 @@ class Decoder_UNet_C(nn.Module):
             h0 = self.res_blocks[i](h0)
         x = self.conv(h0)
         
-        return x
-
+        if self.depth_conv == None:
+            return x
+        else:
+            depth = self.depth_conv(h0)
+            return x, depth
 
 class VIDEO_HOURGLASS(nn.Module):
 
@@ -195,7 +202,7 @@ class VIDEO_HOURGLASS(nn.Module):
         super(VIDEO_HOURGLASS, self).__init__()
         self.device = device
         self.mode = cfg.VIDEO_HOUR.MODE #'pcf','pc','c'
-        self.use_depth = cfg.VIDEO_HOUR.DEPTH # TODO
+        self.use_depth = cfg.VIDEO_HOUR.INPUT_DEPTH # TODO
         self.input_z = cfg.VIDEO_HOUR.INPUT_Z
         self.input_rotation = cfg.VIDEO_HOUR.INPUT_ROTATION
         self.input_grasp = cfg.VIDEO_HOUR.INPUT_GRASP
@@ -206,7 +213,7 @@ class VIDEO_HOURGLASS(nn.Module):
         if pose_dim == 'none':
             if cfg.DATASET.NAME == 'HMD':
                 pose_dim = 21
-            elif (cfg.DATASET.NAME == 'RLBench') or (cfg.DATASET.NAME == 'RLBench2'):
+            elif (cfg.DATASET.NAME == 'RLBench') or (cfg.DATASET.NAME == 'RLBench2') or (cfg.DATASET.NAME == 'RLBench3'):
                 pose_dim = 1
             else:
                 raise ValueError("invalid pose dim")
@@ -225,15 +232,13 @@ class VIDEO_HOURGLASS(nn.Module):
         else:
             encoder_input_dim = basic_dim
             pose_encoder_dim = pose_dim * 2
-        
-        decoder_output_dim = basic_dim
 
         min_filter_num = int(cfg.VIDEO_HOUR.MIN_FILTER_NUM)
         max_filter_num = int(cfg.VIDEO_HOUR.MAX_FILTER_NUM)
 
         self.img_encoder = Encoder(input_dim=encoder_input_dim, filter_size=filter_size, min_filter_num=min_filter_num, max_filter_num=max_filter_num, downscale_num=cfg.VIDEO_HOUR.NUM_DOWN)
         self.pose_encoder = Encoder(input_dim=pose_encoder_dim, filter_size=filter_size, min_filter_num=min_filter_num, max_filter_num=256, downscale_num=cfg.VIDEO_HOUR.NUM_DOWN)
-        self.decoder = Decoder_UNet_C(input_dim=decoder_output_dim, min_filter_num=min_filter_num, max_filter_num_image=256, max_filter_num_pose=256, downscale_num=cfg.VIDEO_HOUR.NUM_DOWN, wo_residual=cfg.VIDEO_HOUR.WO_RESIDUAL)
+        self.decoder = Decoder_UNet_C(min_filter_num=min_filter_num, max_filter_num_image=256, max_filter_num_pose=256, downscale_num=cfg.VIDEO_HOUR.NUM_DOWN, wo_residual=cfg.VIDEO_HOUR.WO_RESIDUAL, depth=self.use_depth)
         # self.decoder = Decoder_UNet(input_dim=decoder_output_dim, min_filter_num=min_filter_num, max_filter_num_image=256, max_filter_num_pose=256, downscale_num=cfg.VIDEO_HOUR.NUM_DOWN)
 
     def forward(self, inputs):
@@ -252,8 +257,12 @@ class VIDEO_HOURGLASS(nn.Module):
         else:
             BASE_IMAGE = RGB[:,0]
 
-        RGB = RGB.view(B, -1, H, W)
+        IMAGE = RGB.view(B, -1, H, W)
         POSE = POSE.view(B, -1, H, W)
+
+        if self.use_depth:
+            DEPTH = inputs['depth'].view(B,-1,H,W)
+            IMAGE = torch.cat((IMAGE, DEPTH), 1)
 
         pose_map = []
         if self.input_z:
@@ -281,11 +290,15 @@ class VIDEO_HOURGLASS(nn.Module):
         if len(pose_map) > 0:
             POSE = torch.cat(pose_map, 1)
 
-        u = self.img_encoder(RGB.view(B, -1, H, W))
-        u0 = self.pose_encoder(POSE.view(B, -1, H, W))
+        u = self.img_encoder(IMAGE)
+        u0 = self.pose_encoder(POSE)
         # d = n0 - n1
         out = self.decoder([u, u0])
-        output_dict['rgb'] = out
+        if self.use_depth:
+            output_dict['rgb'] = out[0]
+            output_dict['depth'] = out[1]
+        else:
+            output_dict['rgb'] = out
         
         return output_dict
         # return out * m + x * (1 - m), w, out
