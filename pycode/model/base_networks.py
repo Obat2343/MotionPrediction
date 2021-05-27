@@ -707,6 +707,7 @@ class hourglass_module(torch.nn.Module):
 
 class SoftArgmax2D(torch.nn.Module):
     """
+    https://github.com/MWPainter/cvpr2019/blob/master/stitched/soft_argmax.py
     Implementation of a 1d soft arg-max function as an nn.Module, so that we can differentiate through arg-max operations.
     """
     def __init__(self, base_index=0, step_size=1, softmax_temp=1.0, device='cpu'):

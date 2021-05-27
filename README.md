@@ -1,5 +1,4 @@
 # Motion Prediction
-
 ## Enviroment
 
 ```sh
@@ -21,11 +20,21 @@ Next, Install requirement
 pip install -r requirements.txt
 ```
 
-Then, Train the model
+Then, Download the dataset
+
+```sh
+mkdir dataset 
+```
+
+google drive link (<https://drive.google.com/file/d/1Nkl53xlV9m87Zm_l93F-T3K6Kd5p4Aca/view?usp=sharing>)
+
+google drive link (<https://drive.google.com/file/d/1LbY_-rg1Mls_YLRUIgPTfk-sQkgVm43M/view?usp=sharing>)
+
+Unzip these data and put them in "dataset" directory as "HMD" and "RLBench3", respectively.
 
 ## How to use
 
 ```sh
 cd main
-python train_mp.py
+python train_mp.py 
 ```
