@@ -2360,6 +2360,7 @@ class RLBench_dataset3(RLBench_dataset):
             input_dict['depth'] = depth_batch
         if self.pred_trajectory:
             input_dict['trajectory'] = trajectory_batch
+        
 
         return input_dict
     
@@ -2679,3 +2680,167 @@ class RLBench_dataset3_VP(RLBench_dataset3):
                         self.index_list.append(index)
                         
                     index += 1
+
+class RLBench_dataset3_test(RLBench_dataset3):
+
+    def __init__(self,cfg,save_dataset=False,mode='val',random_len=0):
+        """
+        output: image_t,posture_t,image_t+1,posture_t+1
+        
+        # variable
+        data_root_dir: path to root directory of data
+        target_key: key of data in motive csv data. (e.g. hand)
+        img_trans: transform(torch.transform) list
+        seed: seed for data augmentation
+        """
+        data_root_dir = os.path.join(cfg.DATASET.RLBENCH.PATH3, mode)
+
+        self.data_list = None
+        self.index_list = None
+        self.sequence_index_list = None
+        self.size = None
+        self.numpose = None # the number of key point
+        
+        # augmentation
+        self.img_trans = None
+        self.depth_trans = None
+        self.root_dir = data_root_dir
+        
+        self.use_front_depth = cfg.VIDEO_HOUR.INPUT_DEPTH
+        self.pred_len = 1
+        print('length of future is {} frame'.format(self.pred_len))
+        
+        self.seed = 0
+
+        if random_len == 0:
+            self.random_len = cfg.DATASET.RLBENCH.RANDOM_LEN
+        else:
+            self.random_len = random_len 
+        
+        task_names = self.get_task_names(cfg.DATASET.RLBENCH.TASK_LIST)
+        self._json_file_name = 'RL_Becnh_dataset_Test_{}_{}{}.json'.format(mode,self.pred_len,task_names)
+        json_path = os.path.join(data_root_dir, 'json', self._json_file_name)
+
+        if not os.path.exists(json_path) or save_dataset:
+            # create dataset
+            print('There is no json data')
+            print('create json data')
+            self.add_data(data_root_dir, cfg)
+            print('done')
+            
+            # save json data
+            print('save json data')
+            os.makedirs(os.path.join(data_root_dir, 'json'), exist_ok=True)
+            with open(json_path, 'w') as f:
+                json.dump([self.data_list, self.index_list],f,indent=4)
+            print('done')
+        else:
+            # load json data
+            print('load json data')
+            with open(json_path) as f:
+                [self.data_list, self.index_list] = json.load(f)
+
+        self.get_image_size()
+        self.ToTensor = transforms.ToTensor()
+
+    def __len__(self):
+        return len(self.sequence_index_list)
+
+    def __getitem__(self, data_index):
+        # get image
+        # print('i:{}'.format(i))
+
+        start_index, end_index = self.sequence_index_list[data_index]
+        index = start_index
+        input_dict = {}
+
+        index_list = [index, index]
+
+        for i in range(end_index - start_index):
+            next_index = index + (i+1)
+            if next_index > end_index:
+                next_index = end_index
+            index_list.append(next_index)
+
+        input_dict['index_list'] = torch.tensor(index_list)
+        input_dict['pred_len'] = self.pred_len
+
+        for i,index in enumerate(index_list):
+            if (index < start_index) or (index > end_index):
+                raise ValueError('hoge')
+                
+            data_dict = self.data_list[index]
+            
+            # get rgb image
+            rgb_path = os.path.join(data_dict['image_dir'], "front_rgb_{}.png".format(data_dict['filename']))
+            rgb_image = Image.open(rgb_path)
+            image_size = rgb_image.size
+            rgb_image = self.transform_rgb(rgb_image, index)
+
+            # get depth image
+            if self.use_front_depth:
+                depth_path = os.path.join(data_dict['image_dir'], "front_depth_{}.pickle".format(data_dict['filename']))
+                with open(depth_path, 'rb') as f:
+                    depth_image = pickle.load(f)
+                depth_image = self.transform_depth(depth_image)
+
+            # get pickle data
+            pickle_path = data_dict['pickle_path']
+            with open(pickle_path, 'rb') as f:
+                pickle_data = pickle.load(f)
+            
+            # get camera info
+            camera_intrinsic = pickle_data['front_intrinsic_matrix']
+            camera_extrinsic = pickle_data['front_extrinsic_matrix'] # world2camera
+            
+            # get gripper info
+            gripper_pos, gripper_matrix, gripper_open = self.get_gripper(pickle_data)
+            
+            # get uv cordinate and pose image
+            pos_image, uv, uv_mask = self.transform_pos2image(gripper_pos, camera_intrinsic, image_size)
+            
+            # convert position data
+            gripper_pos,gripper_pos_mask = self.transform_pos(gripper_pos)
+
+            if i == 0:
+                rgb_batch = torch.unsqueeze(rgb_image, 0)
+                pose_image_batch = torch.unsqueeze(pos_image, 0)
+                pose_batch = torch.unsqueeze(gripper_pos, 0)
+                pose_mask_batch = torch.unsqueeze(gripper_pos_mask, 0)
+                rotation_batch = torch.unsqueeze(gripper_matrix, 0)
+                grasp_batch = torch.unsqueeze(gripper_open, 0)
+                uv_batch = torch.unsqueeze(uv, 0)
+                uv_mask_batch = torch.unsqueeze(uv_mask, 0)
+                if self.use_front_depth:
+                    depth_batch = torch.unsqueeze(depth_image, 0)
+            else:
+                rgb_batch = torch.cat((rgb_batch, torch.unsqueeze(rgb_image, 0)), 0)
+                pose_image_batch = torch.cat((pose_image_batch, torch.unsqueeze(pos_image, 0)), 0)
+                pose_batch = torch.cat((pose_batch, torch.unsqueeze(gripper_pos, 0)), 0)
+                pose_mask_batch = torch.cat((pose_mask_batch, torch.unsqueeze(gripper_pos_mask, 0)), 0)
+                rotation_batch = torch.cat((rotation_batch, torch.unsqueeze(gripper_matrix, 0)), 0)
+                grasp_batch = torch.cat((grasp_batch, torch.unsqueeze(gripper_open, 0)), 0)
+                uv_batch = torch.cat((uv_batch, torch.unsqueeze(uv, 0)), 0)
+                uv_mask_batch = torch.cat((uv_mask_batch, torch.unsqueeze(uv_mask, 0)), 0)
+                if self.use_front_depth:
+                    depth_batch = torch.cat((depth_batch, torch.unsqueeze(depth_image, 0)), 0)
+
+        relative_path = os.path.relpath(rgb_path, self.root_dir)
+        task_name = relative_path[:relative_path.find('/')]
+
+        input_dict['rgb'] = rgb_batch
+        input_dict['pose'] = pose_image_batch
+        input_dict['pose_xyz'] = pose_batch
+        input_dict['pose_xyz_mask'] = pose_mask_batch
+        input_dict['rotation_matrix'] = rotation_batch
+        input_dict['grasp'] = grasp_batch
+        input_dict['uv'] = uv_batch
+        input_dict['uv_mask'] = uv_mask_batch
+        input_dict['index_list'] = index_list
+        input_dict['mtx'] = torch.tensor(camera_intrinsic)
+        input_dict['inv_mtx'] = torch.tensor(np.linalg.inv(camera_intrinsic))
+        input_dict['action_name'] = task_name
+        if self.use_front_depth:
+            input_dict['depth'] = depth_batch
+        
+        return input_dict

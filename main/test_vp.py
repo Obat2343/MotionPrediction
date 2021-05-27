@@ -96,6 +96,8 @@ def make_videomodel_input(inputs, device, sequence_id=0):
         pose_xyz = inputs['pose_xyz'][:,:4].to(device)
         rotation_matrix = inputs['rotation_matrix'][:,:4].to(device)
         grasp = inputs['grasp'][:,:4].to(device)
+        if cfg.VIDEO_HOUR.INPUT_DEPTH:
+            depth = inputs['depth'][:,index_list].to(device)
     elif cfg.VIDEO_HOUR.MODE == 'pc':
         index_list = [sequence_id, sequence_id+1]
         rgb = inputs['rgb'][:,index_list].to(device)
@@ -103,13 +105,27 @@ def make_videomodel_input(inputs, device, sequence_id=0):
         pose_xyz = inputs['pose_xyz'][:,:3].to(device)
         rotation_matrix = inputs['rotation_matrix'][:,:3].to(device)
         grasp = inputs['grasp'][:,:3].to(device)
+        if cfg.VIDEO_HOUR.INPUT_DEPTH:
+            depth = inputs['depth'][:,index_list].to(device)
     elif cfg.VIDEO_HOUR.MODE == 'c':
         rgb = inputs['rgb'][:,1].to(device)
         pose_heatmap = inputs['pose'][:,1:3].to(device)
         pose_xyz = inputs['pose_xyz'][:,1:3].to(device)
         rotation_matrix = inputs['rotation_matrix'][:,1:3].to(device)
         grasp = inputs['grasp'][:,1:3].to(device)
-    return {'rgb':rgb, 'pose':pose_heatmap, 'pose_xyz':pose_xyz, 'rotation_matrix':rotation_matrix, 'grasp':grasp}
+        if cfg.VIDEO_HOUR.INPUT_DEPTH:
+            depth = inputs['depth'][:,1].to(device)
+    
+    input_dict = {}
+    input_dict['rgb'] = rgb
+    input_dict['pose'] = pose_heatmap
+    input_dict['pose_xyz'] = pose_xyz
+    input_dict['rotation_matrix'] = rotation_matrix
+    input_dict['grasp'] = grasp
+    if cfg.VIDEO_HOUR.INPUT_DEPTH:
+        input_dict['depth'] = depth
+
+    return input_dict
 
 for inputs in tqdm(test_dataloader):
     with torch.no_grad():

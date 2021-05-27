@@ -383,6 +383,8 @@ class sequence_hourglass(torch.nn.Module):
         self.pred_len = cfg.PRED_LEN
         self.pred_rotation = cfg.HOURGLASS.PRED_ROTATION
         self.pred_grasp = cfg.HOURGLASS.PRED_GRASP
+        self.pred_trajectory = cfg.HOURGLASS.PRED_TRAJECTORY
+        self.input_depth = cfg.HOURGLASS.INPUT_DEPTH
         self.device = device
 
         self.hour_glass = stacked_hourglass_model(cfg, input_dim=input_dim, output_dim=output_dim, pred_len=1, device=device)
@@ -406,11 +408,15 @@ class sequence_hourglass(torch.nn.Module):
             if sequence_id < S-3:
                 if mp_mode == 1: # input dataset image
                     output_image = inputs['rgb'][:,sequence_id+2].to(self.device) # rgb loss will be 0
+                    if self.input_depth:
+                        output_depth = inputs['depth'][:,sequence_id+2].to(self.device)
                 if mp_mode == 2: # input output image
                     if self.use_video_pred_model:
                         video_inputs = self.make_videomodel_input(inputs, outputs, sequence_id, vp_mode)
                         video_outputs = self.video_pred_model(video_inputs)
                         output_image = [video_outputs['rgb']]
+                        if self.input_depth:
+                            output_depth = [video_outputs['depth']]
                     else:
                         raise ValueError('not implement rotation')
 
@@ -419,19 +425,27 @@ class sequence_hourglass(torch.nn.Module):
                 outputs_history_dict['heatmap'] = [outputs['heatmap'][0]]
                 outputs_history_dict['pose'] = [outputs['pose'][0]]
                 outputs_history_dict['rgb'] = [output_image]
+                if self.input_depth:
+                    outputs_history_dict['depth'] = [output_depth]
                 if self.pred_rotation:
                     outputs_history_dict['rotation'] = [outputs['rotation'][0]]
                 if self.pred_grasp:
                     outputs_history_dict['grasp'] = [outputs['grasp'][0]]
+                if self.pred_trajectory:
+                    outputs_history_dict['trajectory'] = [outputs['trajectory'][0]]
             else:
                 outputs_history_dict['uv'].append(outputs['uv'][0])
                 outputs_history_dict['heatmap'].append(outputs['heatmap'][0])
                 outputs_history_dict['pose'].append(outputs['pose'][0])
                 outputs_history_dict['rgb'].append(output_image)
+                if self.input_depth:
+                    outputs_history_dict['depth'].append(output_depth)
                 if self.pred_rotation:
                     outputs_history_dict['rotation'].append(outputs['rotation'][0])
                 if self.pred_grasp:
                     outputs_history_dict['grasp'].append(outputs['grasp'][0])
+                if self.pred_trajectory:
+                    outputs_history_dict['trajectory'].append(outputs['trajectory'][0])
         
         return outputs_history_dict
 
@@ -446,6 +460,8 @@ class sequence_hourglass(torch.nn.Module):
             data_dict['rgb'] = inputs['rgb'][:,sequence_id:sequence_id+2].to(self.device)
             data_dict['pose'] = inputs['pose'][:,sequence_id:sequence_id+2].to(self.device)
             data_dict['pose_xyz'] = inputs['pose_xyz'][:,sequence_id:sequence_id+2].to(self.device)
+            if self.input_depth:
+                data_dict['depth'] = inputs['depth'][:,sequence_id:sequence_id+2].to(self.device)
             if self.pred_rotation:
                 data_dict['rotation_matrix'] = inputs['rotation_matrix'][:,sequence_id:sequence_id+2].to(self.device)
             if self.pred_grasp:
@@ -455,6 +471,8 @@ class sequence_hourglass(torch.nn.Module):
                 data_dict['rgb'] = inputs['rgb'][:,sequence_id:sequence_id+2].to(self.device)
                 data_dict['pose'] = inputs['pose'][:,sequence_id:sequence_id+2].to(self.device)
                 data_dict['pose_xyz'] = inputs['pose_xyz'][:,sequence_id:sequence_id+2].to(self.device)
+                if self.input_depth:
+                    data_dict['depth'] = inputs['depth'][:,sequence_id:sequence_id+2].to(self.device)
                 if self.pred_rotation:
                     data_dict['rotation_matrix'] = inputs['rotation_matrix'][:,sequence_id:sequence_id+2].to(self.device)
                 if self.pred_grasp:
@@ -462,12 +480,14 @@ class sequence_hourglass(torch.nn.Module):
             elif sequence_id == 1:
                 data_dict['rgb'] = torch.cat((inputs['rgb'][:,sequence_id:sequence_id+1].to(self.device), torch.unsqueeze(outputs_history_dict['rgb'][-1][-1], 1)), 1)
                 data_dict['pose'] = torch.cat((inputs['pose'][:,sequence_id:sequence_id+1].to(self.device), torch.unsqueeze(outputs_history_dict['heatmap'][-1][-1], 1)), 1)
-                
+
                 dataset_xyz = inputs['pose_xyz'][:,sequence_id:sequence_id+1].to(self.device) # B, 1, Dim_pose
                 output_xyz = outputs_history_dict['pose'][-1][-1]
                 B, _, _ = output_xyz.shape # Batch, Num_sequence, Num_Pose(21), 3
                 output_xyz = torch.unsqueeze(output_xyz.contiguous().view(B, -1),1) 
                 data_dict['pose_xyz'] = torch.cat((dataset_xyz, output_xyz), 1)
+                if self.input_depth:
+                    data_dict['depth'] = torch.cat((inputs['depth'][:,sequence_id:sequence_id+1].to(self.device), torch.unsqueeze(outputs_history_dict['depth'][-1][-1], 1)), 1)
                 if self.pred_rotation:
                     data_dict['rotation_matrix'] = torch.cat((inputs['rotation_matrix'][:,sequence_id:sequence_id+1].to(self.device),torch.unsqueeze(outputs_history_dict['rotation'][-1][-1], 1)), 1)
                 if self.pred_grasp:
@@ -477,6 +497,8 @@ class sequence_hourglass(torch.nn.Module):
                 data_dict['pose'] = torch.cat([torch.unsqueeze(intermidiate_heatmap[-1],1) for intermidiate_heatmap in outputs_history_dict['heatmap'][-2:]], 1)
                 B, _, _ = outputs_history_dict['pose'][-1][-1].shape
                 data_dict['pose_xyz'] = torch.cat([torch.unsqueeze(intermidiate_pose[-1].contiguous().view(B, -1),1) for intermidiate_pose in outputs_history_dict['pose'][-2:]], 1)
+                if self.input_depth:
+                    data_dict['depth'] = torch.cat([torch.unsqueeze(intermidiate_heatmap[-1],1) for intermidiate_heatmap in outputs_history_dict['depth'][-2:]], 1)
                 if self.pred_rotation:
                     data_dict['rotation_matrix'] = torch.cat([torch.unsqueeze(intermidiate_rotation[-1],1) for intermidiate_rotation in outputs_history_dict['rotation'][-2:]], 1)
                 if self.pred_grasp:
@@ -496,6 +518,8 @@ class sequence_hourglass(torch.nn.Module):
         mode1: input output heatmap
         mode2: input dataset heatmap
         '''
+        data_dict = {}
+
         if mode == 1:
             t1_heatmap = torch.unsqueeze(outputs['heatmap'][0][-1],1)
         elif mode == 2:
@@ -503,26 +527,32 @@ class sequence_hourglass(torch.nn.Module):
 
         if self.video_pred_model.mode == 'pcf':
             index_list = [sequence_id, sequence_id+1, sequence_id+3]
-            rgb = inputs['rgb'][:,index_list].to(self.device)
+            data_dict['rgb'] = inputs['rgb'][:,index_list].to(self.device)
+            if self.input_depth:
+                data_dict['depth'] = inputs['depth'][:,index_list].to(self.device)
             pose_heatmap = inputs['pose'][:,:4].to(self.device)
-            pose_heatmap = torch.cat((pose_heatmap[:,:2], t1_heatmap, pose_heatmap[:,3:]), 1)
-            pose_xyz = inputs['pose_xyz'][:,:4].to(self.device)
-            rotation_matrix = inputs['rotation_matrix'][:,:4].to(self.device)
-            grasp = inputs['grasp'][:,:4].to(self.device)
+            data_dict['pose'] = torch.cat((pose_heatmap[:,:2], t1_heatmap, pose_heatmap[:,3:]), 1)
+            data_dict['pose_xyz'] = inputs['pose_xyz'][:,:4].to(self.device)
+            data_dict['rotation_matrix'] = inputs['rotation_matrix'][:,:4].to(self.device)
+            data_dict['grasp'] = inputs['grasp'][:,:4].to(self.device)
         elif self.video_pred_model.mode == 'pc':
             index_list = [sequence_id, sequence_id+1]
-            rgb = inputs['rgb'][:,index_list].to(self.device)
+            data_dict['rgb'] = inputs['rgb'][:,index_list].to(self.device)
+            if self.input_depth:
+                data_dict['depth'] = inputs['depth'][:,index_list].to(self.device)
             pose_heatmap = inputs['pose'][:,:3].to(self.device)
-            pose_heatmap = torch.cat((pose_heatmap[:,:2], t1_heatmap), 1)
-            pose_xyz = inputs['pose_xyz'][:,:3].to(self.device)
-            rotation_matrix = inputs['rotation_matrix'][:,:3].to(self.device)
-            grasp = inputs['grasp'][:,:3].to(self.device)
+            data_dict['pose'] = torch.cat((pose_heatmap[:,:2], t1_heatmap), 1)
+            data_dict['pose_xyz'] = inputs['pose_xyz'][:,:3].to(self.device)
+            data_dict['rotation_matrix'] = inputs['rotation_matrix'][:,:3].to(self.device)
+            data_dict['grasp'] = inputs['grasp'][:,:3].to(self.device)
         elif self.video_pred_model.mode == 'c':
-            rgb = inputs['rgb'][:,1].to(self.device)
+            data_dict['rgb'] = inputs['rgb'][:,1].to(self.device)
+            if self.input_depth:
+                data_dict['depth'] = inputs['depth'][:,1].to(self.device)
             pose_heatmap = inputs['pose'][:,1:3].to(self.device)
-            pose_heatmap = torch.cat((pose_heatmap[:,:1], t1_heatmap), 1)
-            pose_xyz = inputs['pose_xyz'][:,1:3].to(self.device)
-            rotation_matrix = inputs['rotation_matrix'][:,1:3].to(self.device)
-            grasp = inputs['grasp'][:,1:3].to(self.device)
+            data_dict['pose'] = torch.cat((pose_heatmap[:,:1], t1_heatmap), 1)
+            data_dict['pose_xyz'] = inputs['pose_xyz'][:,1:3].to(self.device)
+            data_dict['rotation_matrix'] = inputs['rotation_matrix'][:,1:3].to(self.device)
+            data_dict['grasp'] = inputs['grasp'][:,1:3].to(self.device)
             
-        return {'rgb':rgb, 'pose':pose_heatmap, 'pose_xyz':pose_xyz, 'rotation_matrix':rotation_matrix, 'grasp':grasp}
+        return data_dict

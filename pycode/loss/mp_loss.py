@@ -56,6 +56,7 @@ class argmax_sequence_loss(nn.Module):
         self.loss = torch.nn.L1Loss(reduction='none')
         self.pred_len = cfg.PRED_LEN
         self.weight = cfg.LOSS.ARGMAX.WEIGHT
+        self.imbalance = False
 
     def forward(self,inputs,outputs,mode='train'):
         pred_uv_sequence_list = outputs['uv'] #list-list-tensor　Num_sequence Num_intermidiate Pose_tensor 
@@ -75,13 +76,16 @@ class argmax_sequence_loss(nn.Module):
                 loss_dict['additional_info_{}/l1_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = loss.item()
                 if (mode == 'test') and (inverse_intermidiate_id == 0) and (sequence_id == len(pred_uv_sequence_list) - 1):
                     loss_dict['test_info/l1_uv_last'] = loss.item()
+                
+                if (self.imbalance) and (self.pred_len >= 2) and (sequence_id == 0):
+                    loss = loss * (self.pred_len - 1)
 
         loss = sum(loss_list) / len(loss_list) 
         loss_dict['{}/l1_t2'.format(mode)] = loss.item()
         loss_dict['{}/loss'.format(mode)] = loss.item()
 
         loss *= self.weight
-        loss_dict['{}/wegiht_l1_t2'.format(mode)] = loss.item()
+        loss_dict['{}/weight_l1_t2'.format(mode)] = loss.item()
         loss_dict['{}/weight_loss'.format(mode)] = loss.item()
 
         # loss_dict['weight/l1-norm-reg'] = self.weight
@@ -94,6 +98,7 @@ class pose_sequence_loss(nn.Module):
         self.loss = torch.nn.L1Loss(reduction='none')
         self.pred_len = cfg.PRED_LEN
         self.weight = cfg.LOSS.POSE.WEIGHT
+        self.imbalance = False
 
     def forward(self,inputs,outputs,mode='train'):
         loss_dict = {}
@@ -127,6 +132,9 @@ class pose_sequence_loss(nn.Module):
                     loss_dict['test_info/l1_x_last'] = x_loss.item()
                     loss_dict['test_info/l1_y_last'] = y_loss.item()
                     loss_dict['test_info/l1_z_last'] = z_loss.item()
+                
+                if (self.imbalance) and (self.pred_len >= 2) and (sequence_id == 0):
+                    loss = loss * (self.pred_len - 1)
 
         loss = sum(loss_list) / len(loss_list) 
 
@@ -134,7 +142,7 @@ class pose_sequence_loss(nn.Module):
         loss_dict['{}/loss'.format(mode)] = loss.item()
 
         loss *= self.weight
-        loss_dict['{}/wegiht_xyz_l1_t2'.format(mode)] = loss.item()
+        loss_dict['{}/weight_xyz_l1_t2'.format(mode)] = loss.item()
         loss_dict['{}/weight_loss'.format(mode)] = loss.item()
 
         # loss_dict['weight/l1-norm-reg'] = self.weight
@@ -147,6 +155,7 @@ class rotation_sequence_loss(nn.Module):
         self.loss = torch.nn.L1Loss(reduction='none')
         self.pred_len = cfg.PRED_LEN
         self.weight = cfg.LOSS.ROTATION.WEIGHT
+        self.imbalance = False
 
     def forward(self,inputs,outputs,mode='train'):
         loss_dict = {}
@@ -167,6 +176,9 @@ class rotation_sequence_loss(nn.Module):
                     loss_dict['additional_info_{}/rotation_l1_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = loss.item()
                 if (mode == 'test') and (inverse_intermidiate_id == 0) and (sequence_id == len(pred_rotation_sequence_list) - 1):
                     loss_dict['test_info/l1_rotation_last'] = loss.item()
+                
+                if (self.imbalance) and (self.pred_len >= 2) and (sequence_id== 0):
+                    loss = loss * (self.pred_len - 1)
 
         loss = sum(loss_list) / len(loss_list) 
 
@@ -174,7 +186,7 @@ class rotation_sequence_loss(nn.Module):
         loss_dict['{}/loss'.format(mode)] = loss.item()
 
         loss *= self.weight
-        loss_dict['{}/wegiht_rotation_l1_t2'.format(mode)] = loss.item()
+        loss_dict['{}/weight_rotation_l1_t2'.format(mode)] = loss.item()
         loss_dict['{}/weight_loss'.format(mode)] = loss.item()
 
         # loss_dict['weight/l1-norm-reg'] = self.weight
@@ -187,6 +199,7 @@ class grasp_sequence_loss(nn.Module):
         self.loss = torch.nn.BCELoss(reduction='none')
         self.pred_len = cfg.PRED_LEN
         self.weight = cfg.LOSS.GRASP.WEIGHT
+        self.imbalance = False
 
     def forward(self,inputs,outputs,mode='train'):
         loss_dict = {}
@@ -206,6 +219,9 @@ class grasp_sequence_loss(nn.Module):
                     loss_dict['additional_info_{}/grasp_bce_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = loss.item()
                 if (mode == 'test') and (inverse_intermidiate_id == 0) and (sequence_id == len(pred_grasp_sequence_list) - 1):
                     loss_dict['test_info/grasp_last'] = loss.item()
+            
+                if (self.imbalance) and (self.pred_len >= 2) and (sequence_id == 0):
+                    loss = loss * (self.pred_len - 1)
 
         loss = sum(loss_list) / len(loss_list) 
 
@@ -213,7 +229,7 @@ class grasp_sequence_loss(nn.Module):
         loss_dict['{}/loss'.format(mode)] = loss.item()
 
         loss *= self.weight
-        loss_dict['{}/wegiht_grasp_bce'.format(mode)] = loss.item()
+        loss_dict['{}/weight_grasp_bce'.format(mode)] = loss.item()
         loss_dict['{}/weight_loss'.format(mode)] = loss.item()
 
         # loss_dict['weight/l1-norm-reg'] = self.weight
@@ -225,6 +241,7 @@ class Mse_sequence_loss(nn.Module):
         self.loss = torch.nn.MSELoss()
         self.device = device
         self.weight = 1.0 # TODO
+        self.imbalance = False
 
     def forward(self,inputs,outputs,mode='train'):
         loss_dict = {}
@@ -243,13 +260,16 @@ class Mse_sequence_loss(nn.Module):
                 if (mode == 'train') or (mode == 'val'):
                     loss_dict['additional_info_{}/mse_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = loss.item()
 
+                if (self.imbalance) and (self.pred_len >= 2) and (sequence_id == 0):
+                    loss = loss * (self.pred_len - 1)
+
         loss = sum(loss_list) / len(loss_list) 
 
         loss_dict['{}/mse'.format(mode)] = loss.item()
         loss_dict['{}/loss'.format(mode)] = loss.item()
 
         loss *= self.weight
-        loss_dict['{}/wegiht_mse'.format(mode)] = loss.item()
+        loss_dict['{}/weight_mse'.format(mode)] = loss.item()
         loss_dict['{}/weight_loss'.format(mode)] = loss.item()
 
         return loss, loss_dict
@@ -260,6 +280,7 @@ class Trajectory_sequence_loss(nn.Module):
         self.loss = nn.BCELoss()
         self.device = device
         self.weight = cfg.LOSS.TRAJECTORY.WEIGHT
+        self.imbalance = False
 
     def forward(self,inputs,outputs,mode='train'):
         loss_dict = {}
@@ -277,6 +298,9 @@ class Trajectory_sequence_loss(nn.Module):
                 loss_list.append(loss)
                 if (mode == 'train') or (mode == 'val'):
                     loss_dict['additional_info_{}/trajectory_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = loss.item()
+                
+                if (self.imbalance) and (self.pred_len >= 2) and (sequence_id == 0):
+                    loss = loss * (self.pred_len - 1)
 
         loss = sum(loss_list) / len(loss_list) 
 
@@ -284,7 +308,7 @@ class Trajectory_sequence_loss(nn.Module):
         loss_dict['{}/loss'.format(mode)] = loss.item()
 
         loss *= self.weight
-        loss_dict['{}/wegiht_trajectory'.format(mode)] = loss.item()
+        loss_dict['{}/weight_trajectory'.format(mode)] = loss.item()
         loss_dict['{}/weight_loss'.format(mode)] = loss.item()
 
         return loss, loss_dict
@@ -332,8 +356,8 @@ class Test_Loss_sequence_hourglass(nn.Module):
         # self.loss_list.append(pose_loss(device))
         self.loss_list.append(pose_sequence_test_loss(cfg,device))
         if cfg.HOURGLASS.PRED_ROTATION:
-            self.loss_list.append(rotation_sequence_loss(cfg,device))
-            self.loss_list.append(grasp_sequence_loss(cfg,device))
+            self.loss_list.append(rotation_sequence_test_loss(cfg,device))
+            self.loss_list.append(grasp_sequence_test_loss(cfg,device))
         if cfg.LOSS.RGB:
             self.loss_list.append(Mse_sequence_loss(device))
         
@@ -390,8 +414,8 @@ class argmax_sequence_test_loss(nn.Module):
             raise ValueError("Sorry not implemented")
 
         loss = sum(loss_list) / len(loss_list) 
-        loss_dict['{}/l1_mean'.format(mode)] = loss.item()
-        loss_dict['{}/l1_{}'.format(mode, action)] = loss.item()
+        loss_dict['{}/l1_uv_mean'.format(mode)] = loss.item()
+        loss_dict['{}/l1_uv_{}'.format(mode, action)] = loss.item()
         loss_dict['{}/loss'.format(mode)] = loss.item()
 
         # loss_dict['weight/l1-norm-reg'] = self.weight
@@ -410,6 +434,10 @@ class pose_sequence_test_loss(nn.Module):
         action = inputs['action_name'][0]
 
         loss_list = []
+        x_loss_list = []
+        y_loss_list = []
+        z_loss_list = []
+
         for sequence_id, pred_xyz_list in enumerate(pred_xyz_sequence_list):
             gt_xyz = inputs['pose_xyz'][:,2+sequence_id].float()
             gt_xyz = gt_xyz.view(B, -1, 3)
@@ -420,10 +448,13 @@ class pose_sequence_test_loss(nn.Module):
                 pred_xyz = pred_xyz.view(B, -1, 3)
                 x_loss = self.loss(pred_xyz[:,:,0], gt_xyz[:,:,0].to(self.device)) * gt_xyz_mask[:,:,0].to(self.device)
                 x_loss = torch.mean(x_loss)
+                x_loss_list.append(x_loss)
                 y_loss = self.loss(pred_xyz[:,:,1], gt_xyz[:,:,1].to(self.device)) * gt_xyz_mask[:,:,1].to(self.device)
                 y_loss = torch.mean(y_loss)
+                y_loss_list.append(y_loss)
                 z_loss = self.loss(pred_xyz[:,:,2], gt_xyz[:,:,2].to(self.device)) * gt_xyz_mask[:,:,2].to(self.device)
                 z_loss = torch.mean(z_loss)
+                z_loss_list.append(z_loss)
                 loss = (x_loss + y_loss + z_loss) / 3
                 loss_list.append(loss)
                 if (mode == 'train') or (mode == 'val'):
@@ -432,15 +463,21 @@ class pose_sequence_test_loss(nn.Module):
                     loss_dict['additional_info_{}/pos_y_l1_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = y_loss.item()
                     loss_dict['additional_info_{}/pos_z_l1_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = z_loss.item()
                 if (mode == 'test') and (inverse_intermidiate_id == 0) and (sequence_id == len(pred_xyz_sequence_list) - 1):
-                    loss_dict['test_info/l1_xyz_last'] = loss.item()
-                    loss_dict['test_info/l1_x_last'] = x_loss.item()
-                    loss_dict['test_info/l1_y_last'] = y_loss.item()
-                    loss_dict['test_info/l1_z_last'] = z_loss.item()
+                    loss_dict['test/l1_xyz_last'] = loss.item()
+                    loss_dict['test/l1_x_last'] = x_loss.item()
+                    loss_dict['test/l1_y_last'] = y_loss.item()
+                    loss_dict['test/l1_z_last'] = z_loss.item()
 
-        loss = sum(loss_list) / len(loss_list) 
+        loss = sum(loss_list) / len(loss_list)
+        x_loss = sum(x_loss_list) / len(x_loss_list)
+        y_loss = sum(y_loss_list) / len(y_loss_list)
+        z_loss = sum(z_loss_list) / len(z_loss_list) 
 
-        loss_dict['{}/xyz_l1_mean'.format(mode)] = loss.item()
-        loss_dict['{}/xyz_l1_{}'.format(mode,action)] = loss.item()
+        loss_dict['{}/l1_xyz_mean'.format(mode)] = loss.item()
+        loss_dict['{}/l1_xyz_{}'.format(mode,action)] = loss.item()
+        loss_dict['{}/l1_x_mean'.format(mode)] = x_loss.item()
+        loss_dict['{}/l1_y_mean'.format(mode)] = y_loss.item()
+        loss_dict['{}/l1_z_mean'.format(mode)] = z_loss.item()
         loss_dict['{}/loss'.format(mode)] = loss.item()
 
         # loss_dict['weight/l1-norm-reg'] = self.weight
@@ -477,8 +514,8 @@ class rotation_sequence_test_loss(nn.Module):
 
         loss = sum(loss_list) / len(loss_list) 
 
-        loss_dict['{}/rotation_l1_mean'.format(mode)] = loss.item()
-        loss_dict['{}/rotation_l1_{}'.format(mode, action)] = loss.item()
+        loss_dict['{}/l1_rotation_mean'.format(mode)] = loss.item()
+        loss_dict['{}/l1_rotation_{}'.format(mode, action)] = loss.item()
         loss_dict['{}/loss'.format(mode)] = loss.item()
 
         # loss_dict['weight/l1-norm-reg'] = self.weight

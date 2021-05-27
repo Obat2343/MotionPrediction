@@ -84,7 +84,7 @@ class Mse_sequence_loss(nn.Module):
 
 class Mse_Depth_sequence_loss(nn.Module):
     def __init__(self,device):
-        super(Mse_sequence_loss, self).__init__()
+        super(Mse_Depth_sequence_loss, self).__init__()
         self.loss = torch.nn.MSELoss()
         self.device = device
         self.weight = 1.0 # TODO
@@ -213,8 +213,8 @@ class Test_Loss_Video(nn.Module):
         self.count = 0
         self.device = device
 
-        self.loss_list.append(PSNR(device))
-        self.loss_list.append(L1(device))
+        self.loss_list.append(PSNR(cfg, device))
+        self.loss_list.append(L1(cfg, device))
 
     def forward(self,inputs,outputs,mode='test'):
         total_loss = torch.tensor(0.,).to(self.device)
@@ -239,36 +239,31 @@ class Test_Loss_Video(nn.Module):
             self.loss_dict[key] = []
 
 class PSNR(nn.Module):
-    def __init__(self,device):
+    def __init__(self, cfg, device):
         super(PSNR, self).__init__()
         self.loss = kornia.losses.psnr_loss
         self.device = device
 
     def forward(self,inputs,outputs,mode='train'):
         loss_dict = {}
+        action = inputs['action_name'][0]
 
         output_image = outputs['rgb']
         gt_image = inputs['rgb'][:,2].to(self.device)
         B, _, _, _ = output_image.shape
 
-        action = inputs['action_name'][0]
-
         PSNR = self.loss(torch.clamp(output_image*255,0,255),gt_image*255, 255)
         loss_dict['{}/psnr_{}'.format(mode, action)] = PSNR
         loss_dict['{}/psnr_mean'.format(mode)] = PSNR
-        # if C == 4:
-        #     depth_loss = self.loss(output_image[:,3],DEPTH[:,2])
-        # else:
-        #     depth_loss = torch.tensor(0).to(self.device)
-        # loss_dict['{}/depth_mse'.format(mode)] = depth_loss.item()
 
         return torch.tensor(0).to(self.device), loss_dict
 
 class L1(nn.Module):
-    def __init__(self,device):
+    def __init__(self,cfg, device):
         super(L1, self).__init__()
         self.loss = torch.nn.L1Loss()
         self.device = device
+        self.use_depth = cfg.VIDEO_HOUR.INPUT_DEPTH
 
     def forward(self,inputs,outputs,mode='train',frame=1):
         loss_dict = {}
@@ -284,10 +279,14 @@ class L1(nn.Module):
         loss = self.loss(output_image, gt_image)
         loss_dict['{}/l1_{}'.format(mode,action)] = loss
         loss_dict['{}/l1_mean'.format(mode)] = loss
-        # if C == 4:
-        #     depth_loss = self.loss(output_image[:,3],DEPTH[:,2])
-        # else:
-        #     depth_loss = torch.tensor(0).to(self.device)
-        # loss_dict['{}/depth_mse'.format(mode)] = depth_loss.item()
+
+        if self.use_depth:
+            output_depth = outputs['depth']
+            gt_depth = inputs['depth'][:,2].to(self.device)
+            B, _, _, _ = output_depth.shape
+
+            loss = self.loss(output_depth, gt_depth)
+            loss_dict['{}/l1_depth_{}'.format(mode,action)] = loss
+            loss_dict['{}/l1_depth_mean'.format(mode)] = loss
 
         return torch.tensor(0).to(self.device), loss_dict
