@@ -26,11 +26,9 @@ Then, Download the dataset
 mkdir dataset 
 ```
 
-google drive link (<https://drive.google.com/file/d/1Nkl53xlV9m87Zm_l93F-T3K6Kd5p4Aca/view?usp=sharing>)
-
 google drive link (<https://drive.google.com/file/d/1LbY_-rg1Mls_YLRUIgPTfk-sQkgVm43M/view?usp=sharing>)
 
-Unzip these data and put them in "dataset" directory as "HMD" and "RLBench3", respectively.
+Unzip the data and put it in "dataset" directory as "RLBench3".
 
 ## How to use
 

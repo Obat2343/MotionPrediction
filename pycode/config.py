@@ -169,18 +169,6 @@ _C.LOSS.GAN.DICT_ONLY = False
 _C.LOSS.GP = CN()
 _C.LOSS.GP.WEIGHT = 0.01 # TODO change to 10
 
-# VAE LOSS
-_C.LOSS.CVAE = CN()
-_C.LOSS.CVAE.WEIGHT = 1.
-_C.LOSS.CVAE.RECONST_LOSS = 'mse' #L1
-_C.LOSS.CVAE.KLD_WEIGHT = 1.
-
-_C.LOSS.CVAE.IMAGE_LOSS = False
-_C.LOSS.CVAE.IMAGE_LOSS_WEIGHT = 1.
-
-_C.LOSS.CVAE.GAN_LOSS = False
-_C.LOSS.CVAE.GAN_LOSS_WEIGHT = 1.
-
 # rgb los
 _C.LOSS.RGB = False
 
@@ -213,26 +201,6 @@ _C.PRED_NAME = 'cvae1'
 _C.C_DISC = False # conditional discriminator
 _C.LOAD_MODEL = 'all' # all, model_only
 _C.USE_DEPTH = False
-
-##### CVAE1 #####
-
-_C.CVAE1 = CN()
-
-_C.CVAE1.HIDDEN_DIM = 5
-_C.CVAE1.ACTIVATION = 'lrelu'
-_C.CVAE1.NORM = 'none'
-
-_C.CVAE1.ENCODE_ALL_IMAGE = True
-_C.CVAE1.ENCODE_ALL_POSE = True
-_C.CVAE1.RESIDUAL_OUTPUT = False
-_C.CVAE1.POSE_INPUT = True
-_C.CVAE1.Z_DECODER = True
-_C.CVAE1.WITHOUT_Z = False
-
-_C.CVAE1.USE_RGB = True
-_C.CVAE1.USE_DEPTH = False
-_C.CVAE1.USE_POSE_IMAGE = True
-_C.CVAE1.USE_ACTION = False
 
 ##### hourglass #####
 
@@ -270,7 +238,7 @@ _C.VIDEO_HOUR = CN()
 _C.VIDEO_HOUR.TRAIN = False # TODO
 _C.VIDEO_HOUR.MODE = 'pcf' #'pcf', 'pc', 'c'
 _C.VIDEO_HOUR.INPUT_DEPTH = False
-_C.VIDEO_HOUR.INPUT_Z = False
+_C.VIDEO_HOUR.INPUT_Z = True
 _C.VIDEO_HOUR.INPUT_ROTATION = False
 _C.VIDEO_HOUR.INPUT_GRASP = False
 _C.VIDEO_HOUR.ONLY_RGB_AUXILIARY = False

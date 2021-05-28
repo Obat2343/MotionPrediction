@@ -29,6 +29,7 @@ parser.add_argument('--output_dirname', type=str, default='', help='')
 parser.add_argument('--checkpoint_path', type=str, default=None, help='')
 parser.add_argument('--vp_path', type=str, default='')
 parser.add_argument('--log2wandb', type=str2bool, default=True)
+parser.add_argument('--entity', type=str, default="anonymous")
 parser.add_argument('--wandb_group', type=str, default='')
 parser.add_argument('--save_dataset', type=str2bool, default=False)
 parser.add_argument('--blas_num_threads', type=str, default="4", help='set this not to cause openblas error')
@@ -98,7 +99,7 @@ if args.log2wandb:
         group = None
     else:
         group = args.wandb_group
-    run = wandb.init(project='MotionPrediction-{}'.format(cfg.DATASET.NAME), entity='tendon',
+    run = wandb.init(project='MotionPrediction-{}'.format(cfg.DATASET.NAME), entity=args.entity,
                     config=obj, save_code=True, name=args.output_dirname, dir=os.path.join(cfg.BASIC.OUTPUT_DIR, cfg.DATASET.NAME),
                     group=group)
 

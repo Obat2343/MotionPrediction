@@ -24,13 +24,9 @@ parser = argparse.ArgumentParser(description='parser for image generator')
 parser.add_argument('--config_file', type=str, help='path to config file')
 parser.add_argument('--checkpoint_path', type=str, help='')
 parser.add_argument('--video_checkpoint_path','-v', type=str, default='', help='e.g. output/RLdata/VP_pcf_dis_random/model_log/checkpoint_epoch0_iter100000/')
-parser.add_argument('--log2wandb', type=str2bool, default=False)
-parser.add_argument('--wandb_group', type=str, default='')
 parser.add_argument('--blas_num_threads', type=str, default="4", help='set this not to cause openblas error')
-# args = parser.parse_args(args=['--checkpoint_path','output/2020-04-02_18:28:18.736004/model_log/checkpoint_epoch9_iter11'])
 args = parser.parse_args()
 
-# os.environ["OPENBLAS_NUM_THREADS"] = args.blas_num_threads
 import resource
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
@@ -56,21 +52,6 @@ if cuda:
     torch.backends.cudnn.benchmark = True
     torch.backends.cudnn.deterministic = True
     torch.cuda.manual_seed(cfg.BASIC.SEED)
-
-# set wandb TODO
-# with open(args.config_file) as file:
-#     obj = yaml.safe_load(file)
-
-# if args.log2wandb:
-#     import wandb
-#     wandb.login()
-#     if args.wandb_group == '':
-#         group = None
-#     else:
-#         group = args.wandb_group
-#     run = wandb.init(project='MotionPrediction-{}-test'.format(cfg.DATASET.NAME), entity='tendon',
-#                     config=obj, save_code=True, name=args.output_dirname, dir=os.path.join(cfg.BASIC.OUTPUT_DIR, cfg.DATASET.NAME),
-#                     group=group)
 
 # set dataset
 if cfg.DATASET.NAME == 'HMD':
@@ -108,7 +89,6 @@ model = model.to(device)
 
 # set loss
 test_loss_mp = Test_Loss_sequence_hourglass(cfg, device)
-# test_loss_mp2 = Test_Loss_sequence_hourglass(cfg, device)
 
 # start train
 for iteration, inputs in enumerate(test_dataloader, 1):
@@ -126,19 +106,8 @@ for iteration, inputs in enumerate(test_dataloader, 1):
     # save_outputs(inputs, outputs, save_path, iteration, cfg, mode='test')
     print("{} / {}".format(iteration, len(test_dataloader)))
 
-# save and print log
-# log = test_loss_mp1.get_log()
-# print('MP mode1: 1frame pred')
-# for key in log.keys():
-#     print('key:{}  Value:{}'.format(key, log[key]))
-
 log = test_loss_mp.get_log()
-# print('\nMP mode2: end2end pred')
 keys = list(log.keys())
 keys.sort()
 for key in keys:
     print('key:{}  Value:{}'.format(key, log[key]))
-
-# TODO add two logs
-# if args.log2wandb:
-#     wandb.log(log)

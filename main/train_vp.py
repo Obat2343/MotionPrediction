@@ -28,6 +28,7 @@ parser.add_argument('--eval_step', type=int, default=5000, help='')
 parser.add_argument('--output_dirname', type=str, default='', help='')
 parser.add_argument('--checkpoint_path', type=str, default=None, help='')
 parser.add_argument('--log2wandb', type=str2bool, default=True)
+parser.add_argument('--entity', type=str, default="anonymous")
 parser.add_argument('--wandb_group', type=str, default='')
 parser.add_argument('--save_dataset', type=str2bool, default=False)
 parser.add_argument('--blas_num_threads', type=str, default="4", help='set this not to cause openblas error')
@@ -97,7 +98,7 @@ if args.log2wandb:
         group = None
     else:
         group = args.wandb_group
-    run = wandb.init(project='VideoPrediction-{}'.format(cfg.DATASET.NAME), entity='tendon',
+    run = wandb.init(project='VideoPrediction-{}'.format(cfg.DATASET.NAME), entity=args.entity,
                     config=obj, save_code=True, name=args.output_dirname, dir=os.path.join(cfg.BASIC.OUTPUT_DIR, cfg.DATASET.NAME),
                     group=group)
 
@@ -164,8 +165,9 @@ def make_videomodel_input(inputs, device, sequence_id=0):
         rgb = inputs['rgb'][:,index_list].to(device)
         pose_heatmap = inputs['pose'][:,:4].to(device)
         pose_xyz = inputs['pose_xyz'][:,:4].to(device)
-        rotation_matrix = inputs['rotation_matrix'][:,:4].to(device)
-        grasp = inputs['grasp'][:,:4].to(device)
+        if cfg.VIDEO_HOUR.INPUT_ROTATION:
+            rotation_matrix = inputs['rotation_matrix'][:,:4].to(device)
+            grasp = inputs['grasp'][:,:4].to(device)
         if cfg.VIDEO_HOUR.INPUT_DEPTH:
             depth = inputs['depth'][:,index_list].to(device)
     elif cfg.VIDEO_HOUR.MODE == 'pc':
@@ -173,16 +175,18 @@ def make_videomodel_input(inputs, device, sequence_id=0):
         rgb = inputs['rgb'][:,index_list].to(device)
         pose_heatmap = inputs['pose'][:,:3].to(device)
         pose_xyz = inputs['pose_xyz'][:,:3].to(device)
-        rotation_matrix = inputs['rotation_matrix'][:,:3].to(device)
-        grasp = inputs['grasp'][:,:3].to(device)
+        if cfg.VIDEO_HOUR.INPUT_ROTATION:
+            rotation_matrix = inputs['rotation_matrix'][:,:3].to(device)
+            grasp = inputs['grasp'][:,:3].to(device)
         if cfg.VIDEO_HOUR.INPUT_DEPTH:
             depth = inputs['depth'][:,index_list].to(device)
     elif cfg.VIDEO_HOUR.MODE == 'c':
         rgb = inputs['rgb'][:,1].to(device)
         pose_heatmap = inputs['pose'][:,1:3].to(device)
         pose_xyz = inputs['pose_xyz'][:,1:3].to(device)
-        rotation_matrix = inputs['rotation_matrix'][:,1:3].to(device)
-        grasp = inputs['grasp'][:,1:3].to(device)
+        if cfg.VIDEO_HOUR.INPUT_ROTATION:
+            rotation_matrix = inputs['rotation_matrix'][:,1:3].to(device)
+            grasp = inputs['grasp'][:,1:3].to(device)
         if cfg.VIDEO_HOUR.INPUT_DEPTH:
             depth = inputs['depth'][:,1].to(device)
     
@@ -190,8 +194,9 @@ def make_videomodel_input(inputs, device, sequence_id=0):
     input_dict['rgb'] = rgb
     input_dict['pose'] = pose_heatmap
     input_dict['pose_xyz'] = pose_xyz
-    input_dict['rotation_matrix'] = rotation_matrix
-    input_dict['grasp'] = grasp
+    if cfg.VIDEO_HOUR.INPUT_ROTATION:
+        input_dict['rotation_matrix'] = rotation_matrix
+        input_dict['grasp'] = grasp
     if cfg.VIDEO_HOUR.INPUT_DEPTH:
         input_dict['depth'] = depth
 

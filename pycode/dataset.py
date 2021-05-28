@@ -758,7 +758,7 @@ class Softargmax_dataset_VP(Softargmax_dataset):
             json_path = os.path.abspath(os.path.join(folder_path,'calibration_data','realsensecalib_result.json'))
 
             csv_list = os.listdir(data_folder_path)
-            if len(csv_list) == 4:
+            if len(csv_list) != 4:
                 for i in csv_list:
                     if 'calib_pos_' in i:
                         csv_file_name = i
