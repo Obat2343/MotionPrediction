@@ -30,6 +30,12 @@ google drive link (<https://drive.google.com/file/d/1LbY_-rg1Mls_YLRUIgPTfk-sQkg
 
 Unzip the data and put it in "dataset" directory as "RLBench3".
 
+## Download the pretrained weights
+
+please download the pretrained weights from the following link
+
+google drive link (<https://drive.google.com/file/d/14geLtBWYom2zfAUeSreVufwW0MfpgSFf/view?usp=sharing>)
+
 ## How to use
 
 ### train Video prediction model
