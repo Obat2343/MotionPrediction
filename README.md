@@ -32,7 +32,35 @@ Unzip the data and put it in "dataset" directory as "RLBench3".
 
 ## How to use
 
+### train Video prediction model
+
 ```sh
 cd main
-python train_mp.py 
+python train_vp.py --config_file path_to_config
+```
+
+### train motion prediction model
+
+change the config file before you run the code.
+
+```sh
+python train_vp.py --config_file path_to_config
+```
+
+or 
+
+```sh
+pyrhon train_vp.py --config_file path_to_config --vp_path video_prediction_model_dir
+```
+
+### test video prediction model
+
+```sh
+python train_vp.py --config_file path_to_config --checkpoint_path path_to_checkpoint
+```
+
+### test motion prediction model
+
+```sh
+python train_vp.py --config_file path_to_config --checkpoint_path path_to_checkpoint_of_mp --video_checkpoint_path path_to_checkpoint_of_vp
 ```
