@@ -1,4 +1,4 @@
-MP_MODEL_NAME: 'hourglass' # hourglass, sequence_hourglass
+MP_MODEL_NAME: 'sequence_hourglass' # hourglass, sequence_hourglass
 PRED_LEN: 1
 DATASET:
   NAME: 'HMD' # HMD, RLBench
@@ -8,9 +8,6 @@ BASIC:
 LOAD_MODEL: 'all'
 HOURGLASS:
   NUM_BLOCK: 2
-  NUM_DOWNSCALE: 4
-  INTERMEDIATE_LOSS: True
-  PRED_RGB: False
   PRED_ROTATION: False
   PRED_GRASP: False
   INPUT_PAST: False

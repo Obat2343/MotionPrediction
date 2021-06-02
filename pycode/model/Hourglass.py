@@ -151,13 +151,13 @@ class stacked_hourglass_model(torch.nn.Module):
 
             pose_map = []
             if self.input_z:
-                input_z = inputs['pose_xyz'][:,start_index:2,2::3]# B,S,C
+                input_z = inputs['pose_xyz'][:,start_index:2,2::3].to(self.device) # B,S,C
                 input_z = input_z.view(B,-1)
                 input_z = torch.unsqueeze(input_z,2)
                 input_z = torch.unsqueeze(input_z,3)
                 pose_map.append(pose_heatmap * input_z.expand(B,C,H,W))
             if self.input_rotation:
-                input_rotation = inputs['rotation_matrix'][:,start_index:2,:2]
+                input_rotation = inputs['rotation_matrix'][:,start_index:2,:2].to(self.device)
                 input_rotation = input_rotation.view(B,-1,6)
                 input_rotation = input_rotation.contiguous().view(B,-1)
                 input_rotation = torch.unsqueeze(input_rotation, 2)
@@ -167,7 +167,7 @@ class stacked_hourglass_model(torch.nn.Module):
                 heatmap_for_rotation = torch.cat([pose_heatmap[:,s:s+1].expand(B,6,H,W) for s in range(S)], 1)
                 pose_map.append(heatmap_for_rotation * input_rotation)
             if self.input_grasp:
-                input_grasp = inputs['grasp'][:,start_index:2]
+                input_grasp = inputs['grasp'][:,start_index:2].to(self.device)
                 input_grasp = input_grasp.view(B,-1)
                 input_grasp = torch.unsqueeze(input_grasp, 2)
                 input_grasp = torch.unsqueeze(input_grasp, 3)
@@ -228,16 +228,6 @@ class stacked_hourglass_model(torch.nn.Module):
             z = torch.unsqueeze(torch.sum(z.view(B,C,-1),2),2)
             # z = torch.unsqueeze(inputs['pose_xyz'][:,1,[i + 2 for i in range(2, 65, 3)]],2).to(self.device)
             XYZ = self.uv2xyz(uv, mtx, z)
-
-            # # pred rotation
-            # if self.rotation_pred:
-            #     rotation_map = self.rotation_layer_list[i](x)
-            #     print(heatmap_softmax.shape)
-            #     print(rotation_map.shape)
-            #     rotation_map = heatmap_softmax * rotation_map # TODO change here
-            #     B,C,H,W = rotation_map.shape
-            #     rotation = torch.sum(rotation_map.view(B,C,-1),2)
-            #     rotation = compute_rm(rotation)
             
             # pred rotation
             S = self.pred_len

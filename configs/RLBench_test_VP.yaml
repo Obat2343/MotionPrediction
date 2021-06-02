@@ -1,8 +1,8 @@
 PRED_LEN: 1
 DATASET:
-  NAME: 'RLBench3' # HMD, RLBench
+  NAME: 'RLBench3' # HMD, RLBench3
   RLBENCH:
-    TASK_LIST: ['PickUpCup'] # PickUpCup, PutKnifeOnChoppingBoard PutRubbishInBin StackWine TakePlateOffColoredDishRack
+    TASK_LIST: ['PickUpCup'] # PickUpCup
 BASIC:
   NUM_GPU: 1
   BATCH_SIZE: 1
@@ -15,10 +15,5 @@ LOSS:
 VIDEO_HOUR:
   MODE: 'pcf'
   INPUT_DEPTH: False
-  INPUT_Z: True
   INPUT_ROTATION: True
   INPUT_GRASP: True
-  WO_RESIDUAL: []
-  ONLY_RGB_AUXILIARY: False
-SEQUENCE_HOUR:
-  MODE: 2
