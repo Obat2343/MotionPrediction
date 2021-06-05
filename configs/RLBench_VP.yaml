@@ -2,10 +2,10 @@ PRED_LEN: 1
 DATASET:
   NAME: 'RLBench3' # HMD, RLBench
   RLBENCH:
-    TASK_LIST: ['StackWine'] # PickUpCup, PutKnifeOnChoppingBoard PutRubbishInBin StackWine TakePlateOffColoredDishRack
+    TASK_LIST: ['PickUpCup'] # PickUpCup, PutKnifeOnChoppingBoard PutRubbishInBin StackWine TakePlateOffColoredDishRack
 BASIC:
-  NUM_GPU: 2
-  BATCH_SIZE: 6
+  NUM_GPU: 1
+  BATCH_SIZE: 1
 LOAD_MODEL: 'all'
 LOSS:
   GAN:
