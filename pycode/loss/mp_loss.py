@@ -55,6 +55,7 @@ class argmax_sequence_loss(nn.Module):
         self.device = device
         self.loss = torch.nn.L1Loss(reduction='none')
         self.pred_len = cfg.PRED_LEN
+        self.past_len = cfg.PAST_LEN
         self.weight = cfg.LOSS.ARGMAX.WEIGHT
         self.imbalance = False
 
@@ -64,12 +65,14 @@ class argmax_sequence_loss(nn.Module):
         loss_dict = {}
 
         for sequence_id, pred_uv_list in enumerate(pred_uv_sequence_list):
-            gt_uv = inputs['uv'][:,2+sequence_id].float()
-            gt_uv_mask = inputs['uv_mask'][:,2+sequence_id].float()
+            gt_uv = inputs['uv'][:,1+sequence_id+self.past_len].float()
+            gt_uv_mask = inputs['uv_mask'][:,1+sequence_id+self.past_len].float()
             B,P,_ = gt_uv.shape # Batch, Num pose, uv_dim(=2)
             for intermidiate_id, pred_uv in enumerate(pred_uv_list):
                 inverse_intermidiate_id = len(pred_uv_list) - intermidiate_id - 1
                 loss = self.loss(pred_uv, gt_uv.to(self.device)) * gt_uv_mask.to(self.device)
+                loss = loss.view(B,-1)
+                loss = torch.mean(loss, 1) * inputs['valid_sequence_mask'][:,sequence_id].to(self.device)
                 loss = torch.mean(loss)
                 loss_list.append(loss)
                 # if (mode == 'train') or (mode == 'val'):
@@ -80,7 +83,7 @@ class argmax_sequence_loss(nn.Module):
                 if (self.imbalance) and (self.pred_len >= 2) and (sequence_id == 0):
                     loss = loss * (self.pred_len - 1)
 
-        loss = sum(loss_list) / len(loss_list) 
+        loss = sum(loss_list) / (torch.sum(inputs['valid_sequence_mask'].to(self.device)) * len(pred_uv_list))
         loss_dict['{}/l1_t2'.format(mode)] = loss.item()
         loss_dict['{}/loss'.format(mode)] = loss.item()
 
@@ -97,6 +100,7 @@ class pose_sequence_loss(nn.Module):
         self.device = device
         self.loss = torch.nn.L1Loss(reduction='none')
         self.pred_len = cfg.PRED_LEN
+        self.past_len = cfg.PAST_LEN
         self.weight = cfg.LOSS.POSE.WEIGHT
         self.imbalance = False
 
@@ -107,19 +111,28 @@ class pose_sequence_loss(nn.Module):
 
         loss_list = []
         for sequence_id, pred_xyz_list in enumerate(pred_xyz_sequence_list):
-            gt_xyz = inputs['pose_xyz'][:,2+sequence_id].float()
+            gt_xyz = inputs['pose_xyz'][:,1+sequence_id+self.past_len].float()
             gt_xyz = gt_xyz.view(B, -1, 3)
-            gt_xyz_mask = inputs['pose_xyz_mask'][:,2+sequence_id]
+            gt_xyz_mask = inputs['pose_xyz_mask'][:,1+sequence_id+self.past_len]
             gt_xyz_mask = gt_xyz_mask.view(B, -1, 3)
             for intermidiate_id, pred_xyz in enumerate(pred_xyz_list):
                 inverse_intermidiate_id = len(pred_xyz_list) - intermidiate_id - 1
                 pred_xyz = pred_xyz.view(B, -1, 3)
                 x_loss = self.loss(pred_xyz[:,:,0], gt_xyz[:,:,0].to(self.device)) * gt_xyz_mask[:,:,0].to(self.device)
+                x_loss = x_loss.view(B,-1)
+                x_loss = torch.mean(x_loss, 1) * inputs['valid_sequence_mask'][:,sequence_id].to(self.device)
                 x_loss = torch.mean(x_loss)
+
                 y_loss = self.loss(pred_xyz[:,:,1], gt_xyz[:,:,1].to(self.device)) * gt_xyz_mask[:,:,1].to(self.device)
+                y_loss = y_loss.view(B,-1)
+                y_loss = torch.mean(y_loss, 1) * inputs['valid_sequence_mask'][:,sequence_id].to(self.device)
                 y_loss = torch.mean(y_loss)
+
                 z_loss = self.loss(pred_xyz[:,:,2], gt_xyz[:,:,2].to(self.device)) * gt_xyz_mask[:,:,2].to(self.device)
+                z_loss = z_loss.view(B,-1)
+                z_loss = torch.mean(z_loss, 1) * inputs['valid_sequence_mask'][:,sequence_id].to(self.device)
                 z_loss = torch.mean(z_loss)
+
                 loss = (x_loss + y_loss + z_loss) / 3
                 loss_list.append(loss)
                 if (mode == 'train') or (mode == 'val'):
@@ -136,7 +149,7 @@ class pose_sequence_loss(nn.Module):
                 if (self.imbalance) and (self.pred_len >= 2) and (sequence_id == 0):
                     loss = loss * (self.pred_len - 1)
 
-        loss = sum(loss_list) / len(loss_list) 
+        loss = sum(loss_list) / (torch.sum(inputs['valid_sequence_mask'].to(self.device)) * len(pred_xyz_list))
 
         loss_dict['{}/xyz_l1_t2'.format(mode)] = loss.item()
         loss_dict['{}/loss'.format(mode)] = loss.item()
@@ -154,6 +167,7 @@ class rotation_sequence_loss(nn.Module):
         self.device = device
         self.loss = torch.nn.L1Loss(reduction='none')
         self.pred_len = cfg.PRED_LEN
+        self.past_len = cfg.PAST_LEN
         self.weight = cfg.LOSS.ROTATION.WEIGHT
         self.imbalance = False
 
@@ -164,12 +178,14 @@ class rotation_sequence_loss(nn.Module):
 
         loss_list = []
         for sequence_id, pred_rotation_list in enumerate(pred_rotation_sequence_list):
-            gt_rotation = inputs['rotation_matrix'][:,2+sequence_id].float()
+            gt_rotation = inputs['rotation_matrix'][:,1+sequence_id+self.past_len].float()
             gt_rotation = gt_rotation.view(B, -1, 3)
             for intermidiate_id, pred_rotation in enumerate(pred_rotation_list):
                 inverse_intermidiate_id = len(pred_rotation_list) - intermidiate_id - 1
                 pred_rotation = pred_rotation.view(B, -1, 3)
                 loss = self.loss(pred_rotation, gt_rotation.to(self.device))
+                loss = loss.view(B,-1)
+                loss = torch.mean(loss, 1) * inputs['valid_sequence_mask'][:,sequence_id].to(self.device)
                 loss = torch.mean(loss)
                 loss_list.append(loss)
                 if (mode == 'train') or (mode == 'val'):
@@ -180,7 +196,7 @@ class rotation_sequence_loss(nn.Module):
                 if (self.imbalance) and (self.pred_len >= 2) and (sequence_id== 0):
                     loss = loss * (self.pred_len - 1)
 
-        loss = sum(loss_list) / len(loss_list) 
+        loss = sum(loss_list) / (torch.sum(inputs['valid_sequence_mask'].to(self.device)) * len(pred_rotation))
 
         loss_dict['{}/rotation_l1_t2'.format(mode)] = loss.item()
         loss_dict['{}/loss'.format(mode)] = loss.item()
@@ -198,6 +214,7 @@ class grasp_sequence_loss(nn.Module):
         self.device = device
         self.loss = torch.nn.BCELoss(reduction='none')
         self.pred_len = cfg.PRED_LEN
+        self.past_len = cfg.PAST_LEN
         self.weight = cfg.LOSS.GRASP.WEIGHT
         self.imbalance = False
 
@@ -208,11 +225,13 @@ class grasp_sequence_loss(nn.Module):
 
         loss_list = []
         for sequence_id, pred_grasp_list in enumerate(pred_grasp_sequence_list):
-            gt_grasp = inputs['grasp'][:,2+sequence_id].float()
+            gt_grasp = inputs['grasp'][:,1+sequence_id+self.past_len].float()
             gt_grasp = gt_grasp.view(B,1)
             for intermidiate_id, pred_grasp in enumerate(pred_grasp_list):
                 inverse_intermidiate_id = len(pred_grasp_list) - intermidiate_id - 1
                 loss = self.loss(pred_grasp, gt_grasp.to(self.device))
+                loss = loss.view(B,-1)
+                loss = torch.mean(loss, 1) * inputs['valid_sequence_mask'][:,sequence_id].to(self.device)
                 loss = torch.mean(loss)
                 loss_list.append(loss)
                 if (mode == 'train') or (mode == 'val'):
@@ -223,7 +242,7 @@ class grasp_sequence_loss(nn.Module):
                 if (self.imbalance) and (self.pred_len >= 2) and (sequence_id == 0):
                     loss = loss * (self.pred_len - 1)
 
-        loss = sum(loss_list) / len(loss_list) 
+        loss = sum(loss_list) / (torch.sum(inputs['valid_sequence_mask'].to(self.device)) * len(pred_grasp_list))
 
         loss_dict['{}/grasp_bce'.format(mode)] = loss.item()
         loss_dict['{}/loss'.format(mode)] = loss.item()
@@ -239,6 +258,7 @@ class Mse_sequence_loss(nn.Module):
     def __init__(self,device):
         super(Mse_sequence_loss, self).__init__()
         self.loss = torch.nn.MSELoss()
+        self.past_len = cfg.PAST_LEN
         self.device = device
         self.weight = 1.0 # TODO
         self.imbalance = False
@@ -251,11 +271,11 @@ class Mse_sequence_loss(nn.Module):
 
         loss_list = []
         for sequence_id, pred_rgb_list in enumerate(output_image_sequence_list):
-            gt_image = inputs['rgb'][:,2+sequence_id].to(self.device)
+            gt_image = inputs['rgb'][:,1+sequence_id+self.past_len].to(self.device)
             
             for intermidiate_id, pred_rgb in enumerate(pred_rgb_list):
                 inverse_intermidiate_id = len(pred_rgb_list) - intermidiate_id - 1
-                loss = self.loss(pred_rgb, gt_image)
+                loss = self.loss(pred_rgb, gt_image) * inputs['valid_sequence_mask'][sequence_id].to(self.device)
                 loss_list.append(loss)
                 if (mode == 'train') or (mode == 'val'):
                     loss_dict['additional_info_{}/mse_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = loss.item()
@@ -263,7 +283,7 @@ class Mse_sequence_loss(nn.Module):
                 if (self.imbalance) and (self.pred_len >= 2) and (sequence_id == 0):
                     loss = loss * (self.pred_len - 1)
 
-        loss = sum(loss_list) / len(loss_list) 
+        loss = sum(loss_list) / (sum(inputs['valid_sequence_mask']) * len(pred_uv_list))
 
         loss_dict['{}/mse'.format(mode)] = loss.item()
         loss_dict['{}/loss'.format(mode)] = loss.item()
@@ -277,7 +297,8 @@ class Mse_sequence_loss(nn.Module):
 class Trajectory_sequence_loss(nn.Module):
     def __init__(self,cfg,device):
         super(Trajectory_sequence_loss, self).__init__()
-        self.loss = nn.BCELoss()
+        self.loss = nn.BCELoss(reduction='none')
+        self.past_len = cfg.PAST_LEN
         self.device = device
         self.weight = cfg.LOSS.TRAJECTORY.WEIGHT
         self.imbalance = False
@@ -286,15 +307,19 @@ class Trajectory_sequence_loss(nn.Module):
         loss_dict = {}
         output_trajectory_sequence_list = outputs['trajectory']
         if type(output_trajectory_sequence_list) != list:
-            output_image_sequence_list = [[output_trajectory_sequence_list]]
+            output_trajectory_sequence_list = [[output_trajectory_sequence_list]]
+        B, _, _, _ = output_trajectory_sequence_list[0][0].shape
 
         loss_list = []
         for sequence_id, pred_trajectory_list in enumerate(output_trajectory_sequence_list):
-            gt_trajectory = inputs['trajectory'][:,2+sequence_id].to(self.device)
+            gt_trajectory = inputs['trajectory'][:,1+sequence_id+self.past_len].to(self.device)
             
             for intermidiate_id, pred_trajectory in enumerate(pred_trajectory_list):
                 inverse_intermidiate_id = len(pred_trajectory_list) - intermidiate_id - 1
                 loss = self.loss(pred_trajectory, gt_trajectory)
+                loss = loss.view(B,-1)
+                loss = torch.mean(loss, 1) * inputs['valid_sequence_mask'][:,sequence_id].to(self.device)
+                loss = torch.mean(loss)
                 loss_list.append(loss)
                 if (mode == 'train') or (mode == 'val'):
                     loss_dict['additional_info_{}/trajectory_t{}_moduel_index_{}'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = loss.item()
@@ -302,7 +327,7 @@ class Trajectory_sequence_loss(nn.Module):
                 if (self.imbalance) and (self.pred_len >= 2) and (sequence_id == 0):
                     loss = loss * (self.pred_len - 1)
 
-        loss = sum(loss_list) / len(loss_list) 
+        loss = sum(loss_list) / (torch.sum(inputs['valid_sequence_mask'].to(self.device)) * len(pred_trajectory_list))
 
         loss_dict['{}/trajectory'.format(mode)] = loss.item()
         loss_dict['{}/loss'.format(mode)] = loss.item()
@@ -314,10 +339,11 @@ class Trajectory_sequence_loss(nn.Module):
         return loss, loss_dict
 
 class Mse_sequence_loss_gt_diff(nn.Module):
-    def __init__(self,device):
+    def __init__(self,cfg,device):
         super(Mse_sequence_loss_gt_diff, self).__init__()
         self.loss = torch.nn.MSELoss()
         self.device = device
+        self.past_len = cfg.PAST_LEN
 
     def forward(self,inputs,outputs,mode='train'):
         loss_dict = {}
@@ -327,8 +353,8 @@ class Mse_sequence_loss_gt_diff(nn.Module):
 
         loss_list = []
         for sequence_id, pred_rgb_list in enumerate(output_image_sequence_list):
-            gt_image = inputs['rgb'][:,2+sequence_id].to(self.device)
-            ref_image = inputs['rgb'][:,1+sequence_id].to(self.device)
+            gt_image = inputs['rgb'][:,1+sequence_id+self.past_len].to(self.device)
+            ref_image = inputs['rgb'][:,sequence_id+self.past_len].to(self.device)
 
             for intermidiate_id, pred_rgb in enumerate(pred_rgb_list):
                 inverse_intermidiate_id = len(pred_rgb_list) - intermidiate_id - 1
@@ -336,7 +362,7 @@ class Mse_sequence_loss_gt_diff(nn.Module):
                 loss_list.append(loss)
                 loss_dict['additional_info_{}/mse_t{}_moduel_index_{}_gtdiff'.format(mode, 2 + sequence_id, inverse_intermidiate_id)] = loss.item()
 
-        loss = sum(loss_list) / len(loss_list) 
+        loss = sum(loss_list) / (sum(inputs['valid_sequence_mask']) * len(pred_uv_list))
 
         loss_dict['{}/mse_gt_diff'.format(mode)] = loss.item()
 
@@ -389,6 +415,7 @@ class argmax_sequence_test_loss(nn.Module):
         self.device = device
         self.loss = torch.nn.L1Loss(reduction='none')
         self.pred_len = cfg.PRED_LEN
+        self.past_len = cfg.PAST_LEN
 
     def forward(self,inputs,outputs,mode='test'):
         pred_uv_sequence_list = outputs['uv'] #list-list-tensor　Num_sequence Num_intermidiate Pose_tensor 
@@ -397,8 +424,8 @@ class argmax_sequence_test_loss(nn.Module):
         action = inputs['action_name'][0]
 
         for sequence_id, pred_uv_list in enumerate(pred_uv_sequence_list):
-            gt_uv = inputs['uv'][:,2+sequence_id].float()
-            gt_uv_mask = inputs['uv_mask'][:,2+sequence_id].float()
+            gt_uv = inputs['uv'][:,1+sequence_id+self.past_len].float()
+            gt_uv_mask = inputs['uv_mask'][:,1+sequence_id+self.past_len].float()
             B,P,_ = gt_uv.shape # Batch, Num pose, uv_dim(=2)
             for intermidiate_id, pred_uv in enumerate(pred_uv_list):
                 inverse_intermidiate_id = len(pred_uv_list) - intermidiate_id - 1
@@ -426,6 +453,7 @@ class pose_sequence_test_loss(nn.Module):
         super(pose_sequence_test_loss, self).__init__()
         self.device = device
         self.loss = torch.nn.L1Loss(reduction='none')
+        self.past_len = cfg.PAST_LEN
 
     def forward(self,inputs,outputs,mode='train'):
         loss_dict = {}
@@ -439,9 +467,9 @@ class pose_sequence_test_loss(nn.Module):
         z_loss_list = []
 
         for sequence_id, pred_xyz_list in enumerate(pred_xyz_sequence_list):
-            gt_xyz = inputs['pose_xyz'][:,2+sequence_id].float()
+            gt_xyz = inputs['pose_xyz'][:,1+sequence_id+self.past_len].float()
             gt_xyz = gt_xyz.view(B, -1, 3)
-            gt_xyz_mask = inputs['pose_xyz_mask'][:,2+sequence_id]
+            gt_xyz_mask = inputs['pose_xyz_mask'][:,1+sequence_id+self.past_len]
             gt_xyz_mask = gt_xyz_mask.view(B, -1, 3)
             for intermidiate_id, pred_xyz in enumerate(pred_xyz_list):
                 inverse_intermidiate_id = len(pred_xyz_list) - intermidiate_id - 1
@@ -489,6 +517,7 @@ class rotation_sequence_test_loss(nn.Module):
         self.device = device
         self.loss = torch.nn.L1Loss(reduction='none')
         self.pred_len = cfg.PRED_LEN
+        self.past_len = cfg.PAST_LEN
         self.weight = 10
 
     def forward(self,inputs,outputs,mode='train'):
@@ -499,7 +528,7 @@ class rotation_sequence_test_loss(nn.Module):
 
         loss_list = []
         for sequence_id, pred_rotation_list in enumerate(pred_rotation_sequence_list):
-            gt_rotation = inputs['rotation_matrix'][:,2+sequence_id].float()
+            gt_rotation = inputs['rotation_matrix'][:,1+sequence_id+self.past_len].float()
             gt_rotation = gt_rotation.view(B, -1, 3)
             for intermidiate_id, pred_rotation in enumerate(pred_rotation_list):
                 inverse_intermidiate_id = len(pred_rotation_list) - intermidiate_id - 1
@@ -527,6 +556,7 @@ class grasp_sequence_test_loss(nn.Module):
         self.device = device
         self.loss = torch.nn.BCELoss(reduction='none')
         self.pred_len = cfg.PRED_LEN
+        self.past_len = cfg.PAST_LEN
         self.weight = 1
 
     def forward(self,inputs,outputs,mode='train'):
@@ -537,7 +567,7 @@ class grasp_sequence_test_loss(nn.Module):
 
         loss_list = []
         for sequence_id, pred_grasp_list in enumerate(pred_grasp_sequence_list):
-            gt_grasp = inputs['grasp'][:,2+sequence_id].float()
+            gt_grasp = inputs['grasp'][:,1+sequence_id+self.past_len].float()
             gt_grasp = gt_grasp.view(B,1)
             for intermidiate_id, pred_grasp in enumerate(pred_grasp_list):
                 inverse_intermidiate_id = len(pred_grasp_list) - intermidiate_id - 1

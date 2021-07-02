@@ -48,8 +48,9 @@ if len(args.output_dirname) == 0:
     output_dirname = str(dt_now.date()) + '_' + str(dt_now.time())
 else:
     output_dirname = args.output_dirname
-    
-output_dirname = os.path.join(cfg.BASIC.OUTPUT_DIR, cfg.DATASET.NAME, output_dirname)
+
+# TODO change TASK_LIST[0]
+output_dirname = os.path.join(cfg.BASIC.OUTPUT_DIR, cfg.DATASET.NAME, cfg.DATASET.RLBENCH.TASK_LIST[0], output_dirname)
 if os.path.exists(output_dirname):
     while 1:
         ans = input('The specified output dir is already exists. Overwrite? y or n: ')

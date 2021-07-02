@@ -9,7 +9,7 @@ import torch_optimizer as new_optim
 from collections import OrderedDict
 from torchvision import datasets, models, transforms
 from PIL import Image, ImageDraw, ImageOps
-from .dataset import Softargmax_dataset, Softargmax_dataset_VP, Softargmax_dataset_test, RLBench_dataset, RLBench_dataset_VP, RLBench_dataset_test, RLBench_dataset2, RLBench_dataset2_VP, RLBench_dataset3, RLBench_dataset3_VP
+from .dataset import Softargmax_dataset, Softargmax_dataset_VP, Softargmax_dataset_test, RLBench_dataset, RLBench_dataset_VP, RLBench_dataset_test, RLBench_dataset3, RLBench_dataset3_VP
 from .model.Hourglass import stacked_hourglass_model, sequence_hourglass
 
 def build_dataset_MP(cfg, save_dataset=False, mode='train'):
@@ -23,11 +23,6 @@ def build_dataset_MP(cfg, save_dataset=False, mode='train'):
             dataset = RLBench_dataset(cfg, save_dataset=save_dataset, mode=mode)
         elif mode == 'val':
             dataset = RLBench_dataset(cfg, save_dataset=save_dataset, mode=mode)
-    elif cfg.DATASET.NAME == 'RLBench2':
-        if mode == 'train':
-            dataset = RLBench_dataset2(cfg, save_dataset=save_dataset, mode=mode)
-        elif mode == 'val':
-            dataset = RLBench_dataset2(cfg, save_dataset=save_dataset, mode=mode)
     elif cfg.DATASET.NAME == 'RLBench3':
         if mode == 'train':
             dataset = RLBench_dataset3(cfg, save_dataset=save_dataset, mode=mode)
@@ -51,13 +46,6 @@ def build_dataset_VP(cfg, save_dataset=False, mode='train'):
             dataset = RLBench_dataset_VP(cfg, save_dataset=save_dataset, mode=mode)
         elif mode == 'test':
             dataset = RLBench_dataset_VP(cfg, save_dataset=save_dataset, mode='val', random_len=1)
-    elif cfg.DATASET.NAME == 'RLBench2':
-        if mode == 'train':
-            dataset = RLBench_dataset2_VP(cfg, save_dataset=save_dataset, mode=mode)
-        elif mode == 'val':
-            dataset = RLBench_dataset2_VP(cfg, save_dataset=save_dataset, mode=mode)
-        elif mode == 'test':
-            dataset = RLBench_dataset2_VP(cfg, save_dataset=save_dataset, mode='val', random_len=1)
     elif cfg.DATASET.NAME == 'RLBench3':
         if mode == 'train':
             dataset = RLBench_dataset3_VP(cfg, save_dataset=save_dataset, mode=mode)

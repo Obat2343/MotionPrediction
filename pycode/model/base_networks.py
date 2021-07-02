@@ -137,6 +137,8 @@ class ConvBlock_Pre(torch.nn.Module):
             self.bn = torch.nn.GroupNorm(32, output_size)
         elif self.norm == 'spectral':
             self.conv = torch.nn.utils.spectral_norm(self.conv)
+        elif self.norm == 'none':
+            self.norm = None
 
         self.activation = activation
         if self.activation == 'relu':
@@ -177,6 +179,8 @@ class DeconvBlock(torch.nn.Module):
             self.bn = torch.nn.GroupNorm(32, output_size)
         elif self.norm == 'spectral':
             self.deconv = torch.nn.utils.spectral_norm(self.deconv)
+        elif self.norm == 'none':
+            self.norm = None
 
         self.activation = activation
         if self.activation == 'relu':
@@ -216,6 +220,8 @@ class PSBlock(torch.nn.Module):
             self.bn = torch.nn.GroupNorm(32, output_size)
         elif self.norm == 'spectral':
             self.conv = torch.nn.utils.spectral_norm(self.conv)
+        elif self.norm == 'none':
+            self.norm = None
 
         self.activation = activation
         if self.activation == 'relu':
@@ -255,6 +261,8 @@ class RConvBlock(torch.nn.Module):
             self.bn = torch.nn.GroupNorm(32, output_size)
         elif self.norm == 'spectral':
             self.conv = torch.nn.utils.spectral_norm(self.deconv)
+        elif self.norm == 'none':
+            self.norm = None
 
         self.activation = activation
         if self.activation == 'relu':
@@ -438,6 +446,8 @@ class InceptionDownBlock(torch.nn.Module):
             self.bn = torch.nn.GroupNorm(32, output_size)
         elif self.norm == 'spectral':
             self.conv = torch.nn.utils.spectral_norm(self.conv)
+        elif self.norm == 'none':
+            self.norm = None
 
         self.activation = activation
         if self.activation == 'relu':
@@ -679,6 +689,11 @@ class hourglass_module(torch.nn.Module):
     code reference:
     https://github.com/Naman-ntc/Pytorch-Human-Pose-Estimation/blob/master/models/StackedHourGlass.py
     https://github.com/princeton-vl/pytorch_stacked_hourglass/blob/master/models/posenet.py
+
+    options:
+    activation: relu, prelu, lrelu, tanh, sigmoid
+    norm: none, batch, instance, group, spectral
+    upsample_mode: nearest, linear, bilinear, bicubic, trilinear
     """
 
     def __init__(self, input_dim, num_downscale, activation='relu',norm='batch',upsample_mode='nearest'):
@@ -694,7 +709,7 @@ class hourglass_module(torch.nn.Module):
             self.low_block2 = ResidualBlock(input_dim, input_dim, activation=activation, norm=norm)
 
         self.low_block3 = ResidualBlock(input_dim, input_dim, activation=activation, norm=norm)
-        self.upscale = torch.nn.Upsample(scale_factor=2, mode='nearest')
+        self.upscale = torch.nn.Upsample(scale_factor=2, mode=upsample_mode)
     
     def forward(self, x):
         output1 = self.convblock1(x)
