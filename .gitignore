@@ -1,9 +1,7 @@
+__pycache__
 /env
 /dataset
 /output
 /git
-/pycode/__pycache__
-/pycode/model/__pycache__
-/pycode/loss/__pycache__
 
 
