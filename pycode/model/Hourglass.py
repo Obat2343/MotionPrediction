@@ -29,12 +29,11 @@ class stacked_hourglass_model(torch.nn.Module):
         self.input_grasp = cfg.HOURGLASS.INPUT_GRASP
 
         self.input_depth = cfg.HOURGLASS.INPUT_DEPTH # TODO
-        self.use_past = cfg.HOURGLASS.INPUT_PAST
-        if self.use_past:
+        self.input_past = cfg.HOURGLASS.INPUT_PAST
+        self.input_trajectory = cfg.HOURGLASS.INPUT_TRAJECTORY
+
+        if self.input_past:
             input_dim *= (1 + self.past_len)
-        
-        self.use_past_pose = cfg.HOURGLASS.INPUT_PAST
-        if self.use_past_pose:
             input_pose_dim = (output_dim + (6 * self.input_rotation) + self.input_grasp) * (1 + self.past_len)
         else:
             input_pose_dim = (output_dim + (6 * self.input_rotation) + self.input_grasp)
@@ -75,7 +74,15 @@ class stacked_hourglass_model(torch.nn.Module):
             ResidualBlock(int(base_filter / 2), base_filter, activation=activation, norm=norm),
             ResidualBlock(base_filter, base_filter, activation=activation, norm=norm),
             ResidualBlock(base_filter, base_filter, activation=activation, norm=norm)
-        ])
+            ])
+
+        if self.input_trajectory:
+            self.initial_traj_conv = torch.nn.ModuleList([
+            ConvBlock(1, int(base_filter / 2), 3, 1, 1, activation=activation, norm=norm),
+            ResidualBlock(int(base_filter / 2), base_filter, activation=activation, norm=norm),
+            ResidualBlock(base_filter, base_filter, activation=activation, norm=norm),
+            ResidualBlock(base_filter, base_filter, activation=activation, norm=norm)
+            ])
 
         if self.input_depth:
             self.initial_depth_conv = torch.nn.ModuleList([
@@ -83,7 +90,7 @@ class stacked_hourglass_model(torch.nn.Module):
             ResidualBlock(int(base_filter / 2), base_filter, activation=activation, norm=norm),
             ResidualBlock(base_filter, base_filter, activation=activation, norm=norm),
             ResidualBlock(base_filter, base_filter, activation=activation, norm=norm)
-        ])
+            ])
 
         self.hourglass_list = torch.nn.ModuleList([hourglass_module(base_filter, self.num_downscale, activation=activation, norm=norm) for _ in range(self.num_hourglass)])
         
@@ -128,7 +135,7 @@ class stacked_hourglass_model(torch.nn.Module):
             dict['pose'] = list(sequence)-list(intermidiate output)-tensor(output)
         '''
         # get rgb image
-        if self.use_past:
+        if self.input_past:
             B, _, C, H, W = inputs['rgb'].shape
             x = inputs['rgb'][:,:self.past_len + 1].to(self.device)
             x = x.view(B, -1, H, W)
@@ -138,7 +145,7 @@ class stacked_hourglass_model(torch.nn.Module):
         # get pose image (or pose_depth image)
         if self.input_pose:
 
-            if self.use_past_pose:
+            if self.input_past:
                 pose_heatmap = inputs['pose'][:,:self.past_len + 1].to(self.device) #B,2,C,H,W
                 B,S,C,H,W = pose_heatmap.shape
                 pose_heatmap = pose_heatmap.view(B,-1,H,W)
@@ -157,6 +164,7 @@ class stacked_hourglass_model(torch.nn.Module):
                 input_z = torch.unsqueeze(input_z,2)
                 input_z = torch.unsqueeze(input_z,3)
                 pose_map.append(pose_heatmap * input_z.expand(B,C,H,W))
+
             if self.input_rotation:
                 input_rotation = inputs['rotation_matrix'][:,start_index:self.past_len+1,:2].to(self.device)
                 input_rotation = input_rotation.view(B,-1,6)
@@ -167,6 +175,7 @@ class stacked_hourglass_model(torch.nn.Module):
 
                 heatmap_for_rotation = torch.cat([pose_heatmap[:,s:s+1].expand(B,6,H,W) for s in range(S)], 1)
                 pose_map.append(heatmap_for_rotation * input_rotation)
+
             if self.input_grasp:
                 input_grasp = inputs['grasp'][:,start_index:self.past_len+1].to(self.device)
                 input_grasp = input_grasp.view(B,-1)
@@ -178,11 +187,14 @@ class stacked_hourglass_model(torch.nn.Module):
                 pose_heatmap = torch.cat(pose_map, 1)
 
         if self.input_depth:
-            if self.use_past:
+            if self.input_past:
                 depth = inputs['depth'][:,:self.past_len+1].to(self.device)
                 depth = depth.view(B, -1, H, W)
             else:
                 depth = inputs['depth'][:,self.past_len].to(self.device)
+
+        if self.input_trajectory:
+            trajectory = inputs['input_trajectory'].to(self.device)
 
         # get inverse intrinsic camera parameter matrix
         mtx = inputs['inv_mtx'].float().to(self.device)
@@ -211,6 +223,12 @@ class stacked_hourglass_model(torch.nn.Module):
                 depth = self.initial_depth_conv[i](depth)
             
             x = x + depth
+
+        if self.input_trajectory:
+            for i in range(len(self.initial_traj_conv)):
+                trajectory = self.initial_traj_conv[i](trajectory)
+
+            x = x + trajectory
 
         # hourglass
         for i in range(self.num_hourglass):

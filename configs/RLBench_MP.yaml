@@ -4,13 +4,13 @@ PAST_LEN: 4
 DATASET:
   NAME: 'RLBench3' # HMD, RLBench
   RLBENCH:
-    TASK_LIST: ['PickUpCup'] # PickUpCup PutKnifeOnChoppingBoard PutRubbishInBin StackWine TakePlateOffColoredDishRack
+    TASK_LIST: ['PutRubbishInBin'] # PickUpCup PutKnifeOnChoppingBoard PutRubbishInBin StackWine TakePlateOffColoredDishRack
 BASIC:
   NUM_GPU: 2
   BATCH_SIZE: 4
 LOAD_MODEL: 'all'
 HOURGLASS:
-  NUM_BLOCK: 2
+  NUM_BLOCK: 1
   NUM_DOWNSCALE: 4
   INTERMEDIATE_LOSS: True
   PRED_RGB: False
@@ -22,6 +22,7 @@ HOURGLASS:
   INPUT_GRASP: True
   INPUT_DEPTH: True
   INPUT_POSE: True
+  INPUT_TRAJECTORY: True
 VIDEO_HOUR:
   MODE: 'pcf'
   INPUT_DEPTH: True

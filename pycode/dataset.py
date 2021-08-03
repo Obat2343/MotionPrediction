@@ -1630,6 +1630,7 @@ class RLBench_dataset3(RLBench_dataset):
         
         self.use_front_depth = cfg.HOURGLASS.INPUT_DEPTH
         self.pred_trajectory = cfg.HOURGLASS.PRED_TRAJECTORY
+        self.input_trajectory = cfg.HOURGLASS.INPUT_TRAJECTORY
         self.pred_len = cfg.PRED_LEN
         self.past_len = cfg.PAST_LEN
         print('length of future is {} frame'.format(self.pred_len))
@@ -1683,6 +1684,12 @@ class RLBench_dataset3(RLBench_dataset):
                 index_list.insert(0, index - i)
             else:
                 index_list.insert(0, start_index)
+
+        if self.input_trajectory:
+            data_dict = self.data_list[start_index]
+            input_trajectory_path = os.path.join(data_dict['image_dir'][:-5], "additional_info", "goal_trajectory_{}.png".format(data_dict['filename']))
+            input_trajectory_image = Image.open(input_trajectory_path)
+            input_trajectory_image = self.ToTensor(input_trajectory_image)
 
         # if index - 1 >= start_index:
         #     past_index = index - 1
@@ -1781,11 +1788,13 @@ class RLBench_dataset3(RLBench_dataset):
         input_dict['mtx'] = torch.tensor(camera_intrinsic)
         input_dict['inv_mtx'] = torch.tensor(np.linalg.inv(camera_intrinsic))
         input_dict['valid_sequence_mask'] = torch.tensor(valid_sequence_mask)
+
         if self.use_front_depth:
             input_dict['depth'] = depth_batch
         if self.pred_trajectory:
             input_dict['trajectory'] = trajectory_batch
-        
+        if self.input_trajectory:
+            input_dict['input_trajectory'] = input_trajectory_image
 
         return input_dict
     
