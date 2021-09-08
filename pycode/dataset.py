@@ -1599,7 +1599,7 @@ class RLBench_dataset_test(RLBench_dataset):
 # remove RLBench_dataset and replaced with this
 class RLBench_dataset3(RLBench_dataset):
 
-    def __init__(self,cfg,save_dataset=False,mode='train'):
+    def __init__(self,cfg,save_dataset=False,mode='train',dataset_name='RLBench4'):
         """
         output: image_t,posture_t,image_t+1,posture_t+1
         
@@ -1609,7 +1609,7 @@ class RLBench_dataset3(RLBench_dataset):
         img_trans: transform(torch.transform) list
         seed: seed for data augmentation
         """
-        data_root_dir = os.path.join(cfg.DATASET.RLBENCH.PATH3, mode)
+        data_root_dir = os.path.join(cfg.DATASET.RLBENCH.PATH4, mode)
 
         self.data_list = None
         self.index_list = None
@@ -1631,6 +1631,12 @@ class RLBench_dataset3(RLBench_dataset):
         self.use_front_depth = cfg.HOURGLASS.INPUT_DEPTH
         self.pred_trajectory = cfg.HOURGLASS.PRED_TRAJECTORY
         self.input_trajectory = cfg.HOURGLASS.INPUT_TRAJECTORY
+        self.input_vector_map = cfg.HOURGLASS.INPUT_VECTORMAP
+        self.input_trajectory_depth = cfg.HOURGLASS.INPUT_TRAJECTORY_DEPTH # trajectory depth
+        self.input_rotation_map = cfg.HOURGLASS.INPUT_ROTATION_MAP # rotation map
+        self.input_grasp_map = cfg.HOURGLASS.INPUT_GRASPMAP
+        self.input_history_image = cfg.HOURGLASS.INPUT_HISTORY
+
         self.pred_len = cfg.PRED_LEN
         self.past_len = cfg.PAST_LEN
         print('length of future is {} frame'.format(self.pred_len))
@@ -1638,7 +1644,7 @@ class RLBench_dataset3(RLBench_dataset):
         self.seed = 0
         
         task_names = self.get_task_names(cfg.DATASET.RLBENCH.TASK_LIST)
-        self._json_file_name = 'RL_Becnh_dataset_{}_{}{}.json'.format(mode,self.pred_len,task_names)
+        self._json_file_name = 'RL_Becnh_dataset{}_{}_{}{}.json'.format(dataset_name,mode,self.pred_len,task_names)
         json_path = os.path.join(data_root_dir, 'json', self._json_file_name)
         if not os.path.exists(json_path) or save_dataset:
             # create dataset
@@ -1685,11 +1691,51 @@ class RLBench_dataset3(RLBench_dataset):
             else:
                 index_list.insert(0, start_index)
 
+        ### additional info ###
+        # get binary trajectory
         if self.input_trajectory:
             data_dict = self.data_list[start_index]
             input_trajectory_path = os.path.join(data_dict['image_dir'][:-5], "additional_info", "goal_trajectory_{}.png".format(data_dict['filename']))
             input_trajectory_image = Image.open(input_trajectory_path)
             input_trajectory_image = self.ToTensor(input_trajectory_image)
+
+        # get vector image
+        if self.input_vector_map:
+            data_dict = self.data_list[start_index]
+            input_vector_path = os.path.join(data_dict['image_dir'][:-5], "additional_info", "vector_map","vector_data_{}.npy".format(data_dict['filename']))
+            vector_data = np.load(input_vector_path)
+            input_vector = torch.tensor(vector_data, dtype=torch.float32)
+
+        # get trajectory depth map
+        if self.input_trajectory_depth:
+            data_dict = self.data_list[start_index]
+            input_trajectory_depth_path = os.path.join(data_dict['image_dir'][:-5], "additional_info", "depth_map","depth_data_{}.npy".format(data_dict['filename']))
+            trajectory_depth_data = np.load(input_trajectory_depth_path)
+            input_trajectory_depth = torch.tensor(trajectory_depth_data, dtype=torch.float32)
+        
+        # get rotation image
+        if self.input_rotation_map:
+            data_dict = self.data_list[start_index]
+            input_rotation_path = os.path.join(data_dict['image_dir'][:-5], "additional_info", "rotation_map","rotation_data_{}.npy".format(data_dict['filename']))
+            rotation_data = np.load(input_rotation_path)
+            input_rotation = torch.tensor(rotation_data, dtype=torch.float32)
+        
+        # get grasp map
+        if self.input_grasp_map:
+            data_dict = self.data_list[start_index]
+            input_close_grasp_path = os.path.join(data_dict['image_dir'][:-5], "additional_info", "grasp_point","close_{}.npy".format(data_dict['filename']))
+            input_open_grasp_path = os.path.join(data_dict['image_dir'][:-5], "additional_info", "grasp_point","open_{}.npy".format(data_dict['filename']))
+            close_grasp_data = np.load(input_close_grasp_path)
+            open_grasp_data = np.load(input_open_grasp_path)
+            grasp_map = np.concatenate([open_grasp_data, close_grasp_data], 0)
+            input_grasp_map = torch.tensor(grasp_map, dtype=torch.float32)
+
+        # get history image
+        if self.input_history_image:
+            data_dict = self.data_list[start_index]
+            input_history_path = os.path.join(data_dict['image_dir'][:-5], "additional_info", "pseudo_motion_history_{}.png".format(data_dict['filename']))
+            input_history_image = Image.open(input_history_path)
+            input_history_image = self.ToTensor(input_history_image)
 
         # if index - 1 >= start_index:
         #     past_index = index - 1
@@ -1697,6 +1743,7 @@ class RLBench_dataset3(RLBench_dataset):
         #     past_index = start_index
         # index_list = [past_index, index]
 
+        ### get index list ###
         valid_sequence_mask = []
         for i in range(self.pred_len):
             next_index = index + (i+1)
@@ -1795,6 +1842,16 @@ class RLBench_dataset3(RLBench_dataset):
             input_dict['trajectory'] = trajectory_batch
         if self.input_trajectory:
             input_dict['input_trajectory'] = input_trajectory_image
+        if self.input_vector_map:
+            input_dict['input_vector'] = input_vector
+        if self.input_trajectory_depth:
+            input_dict['trajectory_depth'] = input_trajectory_depth
+        if self.input_rotation_map:
+            input_dict['input_rotation'] = input_rotation
+        if self.input_history_image:
+            input_dict['input_history_image'] = input_history_image
+        if self.input_grasp_map:
+            input_dict['input_grasp_map'] = input_grasp_map
 
         return input_dict
     

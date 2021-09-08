@@ -17,25 +17,25 @@ from pycode.dataset import RLBench_dataset, Softargmax_dataset, imageaug_full_tr
 from pycode.config import _C as cfg
 from pycode.model.Hourglass import stacked_hourglass_model
 from pycode.loss.mp_loss import Train_Loss_sequence_hourglass
-from pycode.misc import save_outputs, build_model_MP, build_dataset_MP, build_optimizer, str2bool, save_args, save_checkpoint, load_checkpoint
+from pycode.misc import save_outputs, build_model_MP, build_dataset_MP, build_optimizer, str2bool, save_args, save_checkpoint, load_checkpoint, Timer, Time_dict
 
 # parser
 parser = argparse.ArgumentParser(description='parser for image generator')
 parser.add_argument('--config_file', type=str, default='', metavar='FILE', help='path to config file')
 parser.add_argument('--log_step', type=int, default=100, help='')
-parser.add_argument('--save_step', type=int, default=5000, help='')
+parser.add_argument('--save_step', type=int, default=10000, help='')
 parser.add_argument('--eval_step', type=int, default=5000, help='')
 parser.add_argument('--output_dirname', type=str, default='', help='')
 parser.add_argument('--checkpoint_path', type=str, default=None, help='')
 parser.add_argument('--vp_path', type=str, default='')
 parser.add_argument('--log2wandb', type=str2bool, default=True)
-parser.add_argument('--wandb_group', type=str, default='')
+parser.add_argument('--wandb_group', type=str, default='') # e.g. compare_input
 parser.add_argument('--save_dataset', type=str2bool, default=False)
 parser.add_argument('--blas_num_threads', type=str, default="4", help='set this not to cause openblas error')
 # args = parser.parse_args(args=['--checkpoint_path','output/2020-04-02_18:28:18.736004/model_log/checkpoint_epoch9_iter11'])
 args = parser.parse_args()
 
-os.environ["OPENBLAS_NUM_THREADS"] = args.blas_num_threads
+# os.environ["OPENBLAS_NUM_THREADS"] = args.blas_num_threads
 
 # get cfg data
 if len(args.config_file) > 0:
@@ -99,7 +99,7 @@ if args.log2wandb:
         group = None
     else:
         group = args.wandb_group
-    run = wandb.init(project='MotionPrediction-{}'.format(cfg.DATASET.NAME), entity='tendon',
+    run = wandb.init(project='MotionPrediction-{}-{}'.format(cfg.DATASET.NAME, cfg.DATASET.RLBENCH.TASK_LIST[0]), entity='tendon',
                     config=obj, save_code=True, name=args.output_dirname, dir=os.path.join(cfg.BASIC.OUTPUT_DIR, cfg.DATASET.NAME),
                     group=group)
 
@@ -145,9 +145,14 @@ else:
 tic = time.time()
 end = time.time()
 trained_time = 0
-max_iter = cfg.BASIC.MAX_EPOCH * len(train_dataloader)
+# max_iter = cfg.BASIC.MAX_EPOCH * len(train_dataloader)
+max_iter = 100
+time_dict = Time_dict()
+load_start = time.time()
+
 for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
     for iteration, inputs in enumerate(train_dataloader, 1):
+        time_dict.load_data = time.time() - load_start
         total_iteration = len(train_dataloader) * epoch + iteration
             
         # skip until start iter
@@ -156,11 +161,20 @@ for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
             
         # optimize generator
         optimizer.zero_grad()
-        outputs = model(inputs)
-        loss = train_loss(inputs, outputs)
-        loss.backward()
-        optimizer.step()
-        scheduler.step()
+        
+        with Timer() as t:
+            outputs = model(inputs)
+        time_dict.forward += t.secs
+
+        with Timer() as t:
+            loss = train_loss(inputs, outputs)
+        time_dict.loss += t.secs
+
+        with Timer() as t:
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
+        time_dict.backward += t.secs
         
         # time setting
         trained_time += time.time() - end
@@ -171,33 +185,16 @@ for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
             log = train_loss.get_log()
             eta_seconds = int((trained_time / total_iteration) * (max_iter - total_iteration))
             
-            if args.log2wandb:
+            if (args.log2wandb) and (total_iteration % (args.log_step * 10)):
                 wandb.log(log,step=total_iteration)
             
-            print('===> Iter: {:06d}/{:06d}, LR: {:.5f}, Cost: {:.2f}s, Eta: {}, Loss: {:.6f}'.format(total_iteration, 
+            print('===> Iter: {:06d}/{:06d}, LR: {:.5f}, Cost: {:.2f}s, Load: {:.2f}, Forward: {:.2f}, Backward: {:.2f}, Loss: {:.6f}'.format(total_iteration, 
                 max_iter, optimizer.param_groups[0]['lr'], time.time() - tic, 
-                str(datetime.timedelta(seconds=eta_seconds)), log['train/weight_loss']))
+                time_dict.load_data, time_dict.forward, time_dict.backward, log['train/weight_loss']))
             
             train_loss.reset_log()
             tic = time.time()
-            
-        # validation
-        if total_iteration % args.eval_step == 0:
-            print('validation start')
-            for iteration, inputs in enumerate(val_dataloader, 1):
-                with torch.no_grad():
-                    outputs = model(inputs)
-                    _ = val_loss(inputs, outputs, mode='val')
-                if iteration >= 1000:
-                    break
-            
-            val_log = val_loss.get_log()
-            if args.log2wandb:
-                wandb.log(val_log,step=total_iteration)
-            
-            print('===> Iter: {:06d}/{:06d}, VAL Loss: {:.6f}'.format(total_iteration, max_iter, val_log['val/weight_loss']))
-            print('')
-            val_loss.reset_log()
+            time_dict.reset()
         
         # save checkpoint
         if total_iteration % args.save_step == 0:
@@ -221,8 +218,27 @@ for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
                     save_outputs(inputs, outputs, checkpoint_dir, i, cfg, mode='val')
                     
                 if i >= 5:
-                    break        
-                
+                    break
+
+        # validation
+        if total_iteration % args.eval_step == 0:
+            print('validation start')
+            for iteration, inputs in enumerate(val_dataloader, 1):
+                with torch.no_grad():
+                    outputs = model(inputs)
+                    _ = val_loss(inputs, outputs, mode='val')
+                if iteration >= 1000:
+                    break
+            
+            val_log = val_loss.get_log()
+            if args.log2wandb:
+                wandb.log(val_log,step=total_iteration)
+            
+            print('===> Iter: {:06d}/{:06d}, VAL Loss: {:.6f}'.format(total_iteration, max_iter, val_log['val/weight_loss']))
+            print('')
+            val_loss.reset_log()        
+
+        load_start = time.time()        
     train_dataset.update_seed()
     print("seed: {}".format(train_dataset.seed))
     start_iter = 1

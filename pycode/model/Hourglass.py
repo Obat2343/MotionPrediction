@@ -30,7 +30,12 @@ class stacked_hourglass_model(torch.nn.Module):
 
         self.input_depth = cfg.HOURGLASS.INPUT_DEPTH # TODO
         self.input_past = cfg.HOURGLASS.INPUT_PAST
-        self.input_trajectory = cfg.HOURGLASS.INPUT_TRAJECTORY
+        self.input_trajectory = cfg.HOURGLASS.INPUT_TRAJECTORY # trajectory image
+        self.input_vector_map = cfg.HOURGLASS.INPUT_VECTORMAP # vector map
+        self.input_trajectory_depth = cfg.HOURGLASS.INPUT_TRAJECTORY_DEPTH # trajectory depth
+        self.input_rotation_map = cfg.HOURGLASS.INPUT_ROTATION_MAP # rotation map
+        self.input_grasp_map = cfg.HOURGLASS.INPUT_GRASPMAP
+        self.input_history_image = cfg.HOURGLASS.INPUT_HISTORY
 
         if self.input_past:
             input_dim *= (1 + self.past_len)
@@ -78,6 +83,46 @@ class stacked_hourglass_model(torch.nn.Module):
 
         if self.input_trajectory:
             self.initial_traj_conv = torch.nn.ModuleList([
+            ConvBlock(1, int(base_filter / 2), 3, 1, 1, activation=activation, norm=norm),
+            ResidualBlock(int(base_filter / 2), base_filter, activation=activation, norm=norm),
+            ResidualBlock(base_filter, base_filter, activation=activation, norm=norm),
+            ResidualBlock(base_filter, base_filter, activation=activation, norm=norm)
+            ])
+
+        if self.input_vector_map:
+            self.initial_vector_conv = torch.nn.ModuleList([
+            ConvBlock(2, int(base_filter / 2), 3, 1, 1, activation=activation, norm=norm),
+            ResidualBlock(int(base_filter / 2), base_filter, activation=activation, norm=norm),
+            ResidualBlock(base_filter, base_filter, activation=activation, norm=norm),
+            ResidualBlock(base_filter, base_filter, activation=activation, norm=norm)
+            ])
+
+        if self.input_rotation_map:
+            self.initial_rotation_conv = torch.nn.ModuleList([
+            ConvBlock(9, int(base_filter / 2), 3, 1, 1, activation=activation, norm=norm),
+            ResidualBlock(int(base_filter / 2), base_filter, activation=activation, norm=norm),
+            ResidualBlock(base_filter, base_filter, activation=activation, norm=norm),
+            ResidualBlock(base_filter, base_filter, activation=activation, norm=norm)
+            ])
+
+        if self.input_trajectory_depth:
+            self.initial_trajectory_depth_conv = torch.nn.ModuleList([
+            ConvBlock(1, int(base_filter / 2), 3, 1, 1, activation=activation, norm=norm),
+            ResidualBlock(int(base_filter / 2), base_filter, activation=activation, norm=norm),
+            ResidualBlock(base_filter, base_filter, activation=activation, norm=norm),
+            ResidualBlock(base_filter, base_filter, activation=activation, norm=norm)
+            ])
+
+        if self.input_grasp_map:
+            self.initial_grasp_conv = torch.nn.ModuleList([
+            ConvBlock(16, int(base_filter / 2), 3, 1, 1, activation=activation, norm=norm),
+            ResidualBlock(int(base_filter / 2), base_filter, activation=activation, norm=norm),
+            ResidualBlock(base_filter, base_filter, activation=activation, norm=norm),
+            ResidualBlock(base_filter, base_filter, activation=activation, norm=norm)
+            ])
+
+        if self.input_history_image:
+            self.initial_history_conv = torch.nn.ModuleList([
             ConvBlock(1, int(base_filter / 2), 3, 1, 1, activation=activation, norm=norm),
             ResidualBlock(int(base_filter / 2), base_filter, activation=activation, norm=norm),
             ResidualBlock(base_filter, base_filter, activation=activation, norm=norm),
@@ -196,6 +241,21 @@ class stacked_hourglass_model(torch.nn.Module):
         if self.input_trajectory:
             trajectory = inputs['input_trajectory'].to(self.device)
 
+        if self.input_vector_map:
+            vector_map = inputs['input_vector'].to(self.device)
+
+        if self.input_rotation_map:
+            rotation_map = inputs['input_rotation'].to(self.device)
+
+        if self.input_trajectory_depth:
+            trajectory_depth = inputs['trajectory_depth'].to(self.device)
+
+        if self.input_history_image:
+            history_image = inputs['input_history_image'].to(self.device)
+
+        if self.input_grasp_map:
+            grasp_map = inputs['input_grasp_map'].to(self.device)
+
         # get inverse intrinsic camera parameter matrix
         mtx = inputs['inv_mtx'].float().to(self.device)
 
@@ -229,6 +289,36 @@ class stacked_hourglass_model(torch.nn.Module):
                 trajectory = self.initial_traj_conv[i](trajectory)
 
             x = x + trajectory
+
+        if self.input_vector_map:
+            for i in range(len(self.initial_vector_conv)):
+                vector_map = self.initial_vector_conv[i](vector_map)
+
+            x = x + vector_map
+
+        if self.input_rotation_map:
+            for i in range(len(self.initial_rotation_conv)):
+                rotation_map = self.initial_rotation_conv[i](rotation_map)
+
+            x = x + rotation_map
+
+        if self.input_trajectory_depth:
+            for i in range(len(self.initial_trajectory_depth_conv)):
+                trajectory_depth = self.initial_trajectory_depth_conv[i](trajectory_depth)
+
+            x = x + trajectory_depth
+
+        if self.input_history_image:
+            for i in range(len(self.initial_history_conv)):
+                history_image = self.initial_history_conv[i](history_image)
+
+            x = x + history_image
+
+        if self.input_grasp_map:
+            for i in range(len(self.initial_grasp_conv)):
+                grasp_map = self.initial_grasp_conv[i](grasp_map)
+
+            x = x + grasp_map
 
         # hourglass
         for i in range(self.num_hourglass):

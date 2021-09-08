@@ -45,6 +45,7 @@ _C.DATASET.RLBENCH.TASK_LIST = ['all'] # e.g. ['CloseJar']
 _C.DATASET.RLBENCH.PATH = os.path.abspath('../dataset/RLBench')
 _C.DATASET.RLBENCH.PATH2 = os.path.abspath('../dataset/RLBench2')
 _C.DATASET.RLBENCH.PATH3 = os.path.abspath('../dataset/RLBench3')
+_C.DATASET.RLBENCH.PATH4 = os.path.abspath('../dataset/RLBench4')
 _C.DATASET.RLBENCH.RANDOM_LEN = 3
 
 """
@@ -258,7 +259,11 @@ _C.HOURGLASS.INPUT_Z = True
 _C.HOURGLASS.INPUT_ROTATION = False
 _C.HOURGLASS.INPUT_GRASP = False
 _C.HOURGLASS.INPUT_TRAJECTORY = False
-
+_C.HOURGLASS.INPUT_VECTORMAP = False # vector map
+_C.HOURGLASS.INPUT_TRAJECTORY_DEPTH = False # trajectory depth map
+_C.HOURGLASS.INPUT_ROTATION_MAP = False # rotation map
+_C.HOURGLASS.INPUT_GRASPMAP = False # grasp map
+_C.HOURGLASS.INPUT_HISTORY = False # motion history image
 
 # output
 _C.HOURGLASS.PRED_RGB = False

@@ -11,6 +11,7 @@ from torchvision import datasets, models, transforms
 from PIL import Image, ImageDraw, ImageOps
 from .dataset import Softargmax_dataset, Softargmax_dataset_VP, Softargmax_dataset_test, RLBench_dataset, RLBench_dataset_VP, RLBench_dataset_test, RLBench_dataset3, RLBench_dataset3_VP
 from .model.Hourglass import stacked_hourglass_model, sequence_hourglass
+import time
 
 def build_dataset_MP(cfg, save_dataset=False, mode='train'):
     if cfg.DATASET.NAME == 'HMD':
@@ -23,11 +24,11 @@ def build_dataset_MP(cfg, save_dataset=False, mode='train'):
             dataset = RLBench_dataset(cfg, save_dataset=save_dataset, mode=mode)
         elif mode == 'val':
             dataset = RLBench_dataset(cfg, save_dataset=save_dataset, mode=mode)
-    elif cfg.DATASET.NAME == 'RLBench3':
+    elif (cfg.DATASET.NAME == 'RLBench3') or (cfg.DATASET.NAME == 'RLBench4'):
         if mode == 'train':
-            dataset = RLBench_dataset3(cfg, save_dataset=save_dataset, mode=mode)
+            dataset = RLBench_dataset3(cfg, save_dataset=save_dataset, mode=mode, dataset_name=cfg.DATASET.NAME)
         elif mode == 'val':
-            dataset = RLBench_dataset3(cfg, save_dataset=save_dataset, mode=mode)
+            dataset = RLBench_dataset3(cfg, save_dataset=save_dataset, mode=mode, dataset_name=cfg.DATASET.NAME)
 
     return dataset
 
@@ -46,20 +47,20 @@ def build_dataset_VP(cfg, save_dataset=False, mode='train'):
             dataset = RLBench_dataset_VP(cfg, save_dataset=save_dataset, mode=mode)
         elif mode == 'test':
             dataset = RLBench_dataset_VP(cfg, save_dataset=save_dataset, mode='val', random_len=1)
-    elif cfg.DATASET.NAME == 'RLBench3':
+    elif (cfg.DATASET.NAME == 'RLBench3') or (cfg.DATASET.NAME == 'RLBench4'):
         if mode == 'train':
-            dataset = RLBench_dataset3_VP(cfg, save_dataset=save_dataset, mode=mode)
+            dataset = RLBench_dataset3_VP(cfg, save_dataset=save_dataset, mode=mode, dataset_name=cfg.DATASET.NAME)
         elif mode == 'val':
-            dataset = RLBench_dataset3_VP(cfg, save_dataset=save_dataset, mode=mode)
+            dataset = RLBench_dataset3_VP(cfg, save_dataset=save_dataset, mode=mode, dataset_name=cfg.DATASET.NAME)
         elif mode == 'test':
-            dataset = RLBench_dataset3_VP(cfg, save_dataset=save_dataset, mode='val', random_len=1)
+            dataset = RLBench_dataset3_VP(cfg, save_dataset=save_dataset, mode='val', random_len=1, dataset_name=cfg.DATASET.NAME)
     
     return dataset
 
 def build_model_MP(cfg):
     if cfg.DATASET.NAME == 'HMD':
         output_dim = 21
-    elif (cfg.DATASET.NAME == 'RLBench') or (cfg.DATASET.NAME == 'RLBench2') or (cfg.DATASET.NAME == 'RLBench3'):
+    elif 'RLBench' in cfg.DATASET.NAME:
         output_dim = 1
 
     if cfg.MP_MODEL_NAME == 'hourglass':
@@ -410,3 +411,64 @@ def save_diff_heatmap_overlay(pred, gt):
         else:
             overlayed_image_batch = torch.cat((overlayed_image_batch, torch.unsqueeze(overlayed_image,0)), 0)
     return overlayed_image_batch
+
+class Timer(object):
+    def __init__(self, verbose=False):
+        self.verbose = verbose
+
+    def __enter__(self):
+        self.start = time.time()
+        return self
+
+    def __exit__(self, *args):
+        self.end = time.time()
+        self.secs = self.end - self.start
+        self.msecs = self.secs * 1000  # millisecs
+
+class Time_dict(object):
+    def __init__(self):
+        self.forward = 0
+        self.load_data = 0
+        self.backward = 0
+        self.loss = 0
+
+    def reset(self):
+        self.forward = 0
+        self.load_data = 0
+        self.backward = 0
+        self.loss = 0
+
+### For evaluation
+
+def calculate_dtw_pos(pred_action, gt_action):
+    pred_xyz = np.array(pred_action)[:,:3]
+    gt_xyz = np.array(gt_action)[:,:3]
+
+    print("calculate dtw pose")
+    dtw_error_xyz, path_xyz = fastdtw(pred_xyz, gt_xyz, dist=euclidean)
+    dtw_error_x, path_x = fastdtw(pred_xyz[:,0], gt_xyz[:,0], dist=euclidean)
+    dtw_error_y, path_y = fastdtw(pred_xyz[:,1], gt_xyz[:,1], dist=euclidean)
+    dtw_error_z, path_z = fastdtw(pred_xyz[:,2], gt_xyz[:,2], dist=euclidean)
+    return dtw_error_xyz / len(path_xyz), dtw_error_x / len(path_x), dtw_error_y / len(path_y), dtw_error_z / len(path_z)
+
+def calculate_dtw_angle(pred_action, gt_action):
+    pred_quat = np.array(pred_action)[:,3:7]
+    gt_quat = np.array(gt_action)[:,3:7]
+
+    r = R.from_quat(pred_quat)
+    pred_eular = r.as_euler('xyz')
+
+    r = R.from_quat(gt_quat)
+    gt_eular = r.as_euler('xyz')
+
+    def angle_euclidean(angle1, angle2):
+        diff_eular = angle1 - angle2
+        diff_eular = np.where(abs(diff_eular) > np.pi, (2*np.pi) - abs(diff_eular), abs(diff_eular))
+        return np.linalg.norm(diff_eular)
+
+    print("calculate dtw angle")
+    dtw_error_xyz, path_xyz = fastdtw(pred_eular, gt_eular, dist=angle_euclidean)
+    dtw_error_x, path_x = fastdtw(pred_eular[:,0], gt_eular[:,0], dist=angle_euclidean)
+    dtw_error_y, path_y = fastdtw(pred_eular[:,1], gt_eular[:,1], dist=angle_euclidean)
+    dtw_error_z, path_z = fastdtw(pred_eular[:,2], gt_eular[:,2], dist=angle_euclidean)
+    return dtw_error_xyz / len(path_xyz), dtw_error_x / len(path_x), dtw_error_y / len(path_y), dtw_error_z / len(path_z)
