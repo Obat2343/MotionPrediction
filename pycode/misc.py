@@ -13,6 +13,7 @@ from .dataset import Softargmax_dataset, Softargmax_dataset_VP, Softargmax_datas
 from .model.Hourglass import stacked_hourglass_model, sequence_hourglass
 import time
 from fastdtw import fastdtw # https://github.com/slaypni/fastdtw
+from scipy.spatial.distance import euclidean
 
 def build_dataset_MP(cfg, save_dataset=False, mode='train'):
     if cfg.DATASET.NAME == 'HMD':
