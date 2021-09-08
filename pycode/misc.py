@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw, ImageOps
 from .dataset import Softargmax_dataset, Softargmax_dataset_VP, Softargmax_dataset_test, RLBench_dataset, RLBench_dataset_VP, RLBench_dataset_test, RLBench_dataset3, RLBench_dataset3_VP
 from .model.Hourglass import stacked_hourglass_model, sequence_hourglass
 import time
+from fastdtw import fastdtw # https://github.com/slaypni/fastdtw
 
 def build_dataset_MP(cfg, save_dataset=False, mode='train'):
     if cfg.DATASET.NAME == 'HMD':
