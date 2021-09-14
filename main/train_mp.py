@@ -1,11 +1,14 @@
 import os
+os.environ["OPENBLAS_NUM_THREADS"] = "4"
+
+import argparse
 import sys
 import time
 import datetime
-import argparse
 import torch
 import yaml
 import shutil
+import threading
 import torchvision
 from torchvision import datasets, models, transforms
 from torch.utils.data import DataLoader
@@ -31,11 +34,8 @@ parser.add_argument('--vp_path', type=str, default='')
 parser.add_argument('--log2wandb', type=str2bool, default=True)
 parser.add_argument('--wandb_group', type=str, default='') # e.g. compare_input
 parser.add_argument('--save_dataset', type=str2bool, default=False)
-parser.add_argument('--blas_num_threads', type=str, default="4", help='set this not to cause openblas error')
 # args = parser.parse_args(args=['--checkpoint_path','output/2020-04-02_18:28:18.736004/model_log/checkpoint_epoch9_iter11'])
 args = parser.parse_args()
-
-# os.environ["OPENBLAS_NUM_THREADS"] = args.blas_num_threads
 
 # get cfg data
 if len(args.config_file) > 0:
@@ -152,7 +152,7 @@ load_start = time.time()
 
 for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
     for iteration, inputs in enumerate(train_dataloader, 1):
-        time_dict.load_data = time.time() - load_start
+        time_dict.load_data += time.time() - load_start
         total_iteration = len(train_dataloader) * epoch + iteration
             
         # skip until start iter
@@ -188,6 +188,7 @@ for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
             if (args.log2wandb) and (total_iteration % (args.log_step * 10)):
                 wandb.log(log,step=total_iteration)
             
+            # print(threading.active_count())
             print('===> Iter: {:06d}/{:06d}, LR: {:.5f}, Cost: {:.2f}s, Load: {:.2f}, Forward: {:.2f}, Backward: {:.2f}, Loss: {:.6f}'.format(total_iteration, 
                 max_iter, optimizer.param_groups[0]['lr'], time.time() - tic, 
                 time_dict.load_data, time_dict.forward, time_dict.backward, log['train/weight_loss']))
@@ -238,7 +239,11 @@ for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
             print('')
             val_loss.reset_log()        
 
-        load_start = time.time()        
+        load_start = time.time()
+
+        if total_iteration == cfg.BASIC.MAX_ITER:
+            sys.exit()
+
     train_dataset.update_seed()
     print("seed: {}".format(train_dataset.seed))
     start_iter = 1
