@@ -5,9 +5,9 @@ DATASET:
   NAME: 'RLBench4' # HMD, RLBench
   RLBENCH:
     TASK_LIST: ['PutRubbishInBin'] # PickUpCup PutKnifeOnChoppingBoard PutRubbishInBin StackWine TakePlateOffColoredDishRack
-    PATH4: '/home-local/tendon/dataset/RLBench4'
+    # PATH4: '/home-local/tendon/dataset/RLBench4'
 BASIC:
-  NUM_GPU: 1
+  NUM_GPU: 2
   BATCH_SIZE: 2
   WORKERS: 4
 LOAD_MODEL: 'all'
@@ -25,9 +25,9 @@ HOURGLASS:
   INPUT_DEPTH: True
   INPUT_POSE: True
   INPUT_TRAJECTORY: False
-  INPUT_VECTORMAP: False # vector map
+  INPUT_VECTORMAP: True # vector map
   INPUT_TRAJECTORY_DEPTH: False # trajectory depth map
-  INPUT_ROTATION_MAP: False # rotation map
+  INPUT_ROTATION_MAP: True # rotation map
   INPUT_GRASPMAP: False # grasp map
   INPUT_HISTORY: False # motion history image
 VIDEO_HOUR:

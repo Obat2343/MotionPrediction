@@ -14,6 +14,7 @@ from .model.Hourglass import stacked_hourglass_model, sequence_hourglass
 import time
 from fastdtw import fastdtw # https://github.com/slaypni/fastdtw
 from scipy.spatial.distance import euclidean
+from scipy.spatial.transform import Rotation as R
 
 def build_dataset_MP(cfg, save_dataset=False, mode='train'):
     if cfg.DATASET.NAME == 'HMD':
