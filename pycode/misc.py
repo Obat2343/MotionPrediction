@@ -199,9 +199,9 @@ class debug_set(object):
 
 def save_outputs(inputs, outputs, path, index, cfg, mode='train'):
     uv_list, heatmap_list, pose_list = outputs['uv'], outputs['heatmap'], outputs['pose']
-    for sequence_id in range(len(uv_list)):
-        heatmap = convert_heatmap(heatmap_list[sequence_id][-1])
-        B, C, H, W = heatmap.shape
+    Batch, Seq, Block, C, H, W = heatmap_list.shape
+    for sequence_id in range(Seq):
+        heatmap = convert_heatmap(heatmap_list[:,sequence_id,-1])
 
         #gt_current_pose_image = torch.unsqueeze(torch.unsqueeze(torch.sum(inputs['pose'],dim=1),1),1)
         #gt_future_pose_image = torch.unsqueeze(torch.sum(inputs['future_pose_image'],dim=2),2)
@@ -220,7 +220,7 @@ def save_outputs(inputs, outputs, path, index, cfg, mode='train'):
         torchvision.utils.save_image(overlay_image.view(-1,3,H,W),save_heatmap_overlay_path)
 
         # save uv cordinate
-        pos_image = make_pos_image((W,H),uv_list[sequence_id][-1].to('cpu'),inputs['uv_mask'][:,sequence_id+2])
+        pos_image = make_pos_image((W,H),uv_list[:,sequence_id,-1].to('cpu'),inputs['uv_mask'][:,sequence_id+2])
         overlay_image = make_overlay_image(inputs['rgb'][:,sequence_id+1], pos_image)
         pos_image_gt = make_pos_image((W,H),inputs['uv'][:,2+sequence_id],inputs['uv_mask'][:,2+sequence_id])
         overlay_image_gt = make_overlay_image(inputs['rgb'][:,sequence_id+1], pos_image)
@@ -230,13 +230,13 @@ def save_outputs(inputs, outputs, path, index, cfg, mode='train'):
         
         # save output image
         if cfg.HOURGLASS.PRED_RGB:
-            sequence_image = torch.cat((outputs['rgb'][sequence_id][-1].to('cpu'),inputs['rgb'][:,sequence_id+2]),0)
+            sequence_image = torch.cat((outputs['rgb'][:,sequence_id,-1].to('cpu'),inputs['rgb'][:,sequence_id+2]),0)
             save_image_path = os.path.join(model_path,'checkpoint_epoch{}_iter{}'.format(epoch,iteration),'{}_image_output_{}_{}.jpg'.format(mode, index, sequence_id))
             torchvision.utils.save_image(sequence_image, save_image_path,nrow=cfg.BASIC.BATCH_SIZE)
 
         # save rotation image
         if cfg.HOURGLASS.PRED_ROTATION:
-            rotation_image = make_rotation_image(inputs['rgb'][:,sequence_id+1:sequence_id+2], torch.unsqueeze(outputs['rotation'][sequence_id][-1],1), outputs['pose'][sequence_id][-1], inputs['mtx'])
+            rotation_image = make_rotation_image(inputs['rgb'][:,sequence_id+1:sequence_id+2], torch.unsqueeze(outputs['rotation'][:,sequence_id,-1],1), outputs['pose'][:,sequence_id,-1], inputs['mtx'])
             rotation_gt_image = make_rotation_image(inputs['rgb'][:,sequence_id+1:sequence_id+2], inputs['rotation_matrix'][:,sequence_id+1:sequence_id+2], inputs['pose_xyz'][:,sequence_id+1:sequence_id+2], inputs['mtx'])
             rotation_images = torch.cat((rotation_image, rotation_gt_image), 0)
             save_rotation_path = os.path.join(path,'{}_rotation_{}_{}.jpg'.format(mode, index, sequence_id))
@@ -244,7 +244,7 @@ def save_outputs(inputs, outputs, path, index, cfg, mode='train'):
         
         # save trajectory
         if cfg.HOURGLASS.PRED_TRAJECTORY:
-            trajectory_image = outputs['trajectory'][sequence_id][-1].to('cpu')
+            trajectory_image = outputs['trajectory'][:,sequence_id,-1].to('cpu')
             trajectory_gt = inputs['trajectory'][:,sequence_id+1]
             trajectory_images = torch.cat((trajectory_image, trajectory_gt), 0)
             save_trajectory_path = os.path.join(path,'{}_trajectory_{}_{}.jpg'.format(mode, index, sequence_id))

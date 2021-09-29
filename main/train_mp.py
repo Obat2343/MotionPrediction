@@ -31,6 +31,7 @@ parser.add_argument('--eval_step', type=int, default=5000, help='')
 parser.add_argument('--output_dirname', type=str, default='', help='')
 parser.add_argument('--checkpoint_path', type=str, default=None, help='')
 parser.add_argument('--vp_path', type=str, default='')
+parser.add_argument('--hourglass_path', type=str, default='')
 parser.add_argument('--log2wandb', type=str2bool, default=True)
 parser.add_argument('--wandb_group', type=str, default='') # e.g. compare_input
 parser.add_argument('--save_dataset', type=str2bool, default=False)
@@ -117,6 +118,10 @@ model = build_model_MP(cfg)
 if (args.vp_path != "") and (cfg.SEQUENCE_HOUR.USE_VIDEOMODEL):
     vp_path = os.path.join(args.vp_path, 'vp.pth')
     model.video_pred_model, _, _, _, _ = load_checkpoint(model.video_pred_model, vp_path, fix_parallel=True)
+
+if (len(args.hourglass_path) != 0) and cfg.MP_MODEL_NAME == 'sequence_hourglass':
+    print("load hourglass")
+    model.hour_glass, _, _, _, _ = load_checkpoint(model.hour_glass, args.hourglass_path, fix_parallel=True)
 
 model = torch.nn.DataParallel(model, device_ids = list(range(cfg.BASIC.NUM_GPU)))
 model = model.to(device)

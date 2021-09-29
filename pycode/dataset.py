@@ -1749,7 +1749,7 @@ class RLBench_dataset3(RLBench_dataset):
             next_index = index + (i+1)
             if next_index > end_index:
                 next_index = end_index
-                valid_sequence_mask.appned(0.) # 0 means sequence is end. This value is used for loss.
+                valid_sequence_mask.append(0.) # 0 means sequence is end. This value is used for loss.
             else:
                 valid_sequence_mask.append(1.) # 1 means sequence is not end. This value is used for loss.
             index_list.append(next_index)
