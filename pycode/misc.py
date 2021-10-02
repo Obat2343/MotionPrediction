@@ -449,10 +449,22 @@ def calculate_dtw_pos(pred_action, gt_action):
 
     print("calculate dtw pose")
     dtw_error_xyz, path_xyz = fastdtw(pred_xyz, gt_xyz, dist=euclidean)
+    error_xyz_list = error_divide_time(pred_xyz, gt_xyz, euclidean, path_xyz)
+    mean_dtw_xyz = dtw_error_xyz / len(path_xyz)
+
     dtw_error_x, path_x = fastdtw(pred_xyz[:,0], gt_xyz[:,0], dist=euclidean)
+    error_x_list = error_divide_time(pred_xyz[:,0], gt_xyz[:,0], euclidean, path_x)
+    mean_dtw_x = dtw_error_x / len(path_x)
+
     dtw_error_y, path_y = fastdtw(pred_xyz[:,1], gt_xyz[:,1], dist=euclidean)
+    error_y_list = error_divide_time(pred_xyz[:,1], gt_xyz[:,1], euclidean, path_y)
+    mean_dtw_y = dtw_error_y / len(path_y)
+
     dtw_error_z, path_z = fastdtw(pred_xyz[:,2], gt_xyz[:,2], dist=euclidean)
-    return dtw_error_xyz / len(path_xyz), dtw_error_x / len(path_x), dtw_error_y / len(path_y), dtw_error_z / len(path_z)
+    error_z_list = error_divide_time(pred_xyz[:,2], gt_xyz[:,2], euclidean, path_z)
+    mean_dtw_z = dtw_error_z / len(path_z)
+
+    return mean_dtw_xyz, mean_dtw_x, mean_dtw_y, mean_dtw_z, error_xyz_list, error_x_list, error_y_list, error_z_list
 
 def calculate_dtw_angle(pred_action, gt_action):
     pred_quat = np.array(pred_action)[:,3:7]
@@ -471,7 +483,27 @@ def calculate_dtw_angle(pred_action, gt_action):
 
     print("calculate dtw angle")
     dtw_error_xyz, path_xyz = fastdtw(pred_eular, gt_eular, dist=angle_euclidean)
+    error_xyz_list = error_divide_time(pred_eular, gt_eular, angle_euclidean, path_xyz)
+    mean_dtw_xyz = dtw_error_xyz / len(path_xyz)
+
     dtw_error_x, path_x = fastdtw(pred_eular[:,0], gt_eular[:,0], dist=angle_euclidean)
+    error_x_list = error_divide_time(pred_eular[:,0], gt_eular[:,0], angle_euclidean, path_x)
+    mean_dtw_x = dtw_error_x / len(path_x)
+
     dtw_error_y, path_y = fastdtw(pred_eular[:,1], gt_eular[:,1], dist=angle_euclidean)
+    error_y_list = error_divide_time(pred_eular[:,1], gt_eular[:,1], angle_euclidean, path_y)
+    mean_dtw_y = dtw_error_y / len(path_y)
+
     dtw_error_z, path_z = fastdtw(pred_eular[:,2], gt_eular[:,2], dist=angle_euclidean)
-    return dtw_error_xyz / len(path_xyz), dtw_error_x / len(path_x), dtw_error_y / len(path_y), dtw_error_z / len(path_z)
+    error_z_list = error_divide_time(pred_eular[:,2], gt_eular[:,2], angle_euclidean, path_z)
+    mean_dtw_z = dtw_error_z / len(path_z)
+
+    return mean_dtw_xyz, mean_dtw_x, mean_dtw_y, mean_dtw_z, error_xyz_list, error_x_list, error_y_list, error_z_list
+
+def error_divide_time(pred, gt, dist, path):
+    error_list = []
+    for i,j in path:
+        error = dist(pred[i], gt[j])
+        error_list.append(error)
+    
+    return error_list
