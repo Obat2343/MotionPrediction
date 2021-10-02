@@ -501,9 +501,13 @@ def calculate_dtw_angle(pred_action, gt_action):
     return mean_dtw_xyz, mean_dtw_x, mean_dtw_y, mean_dtw_z, error_xyz_list, error_x_list, error_y_list, error_z_list
 
 def error_divide_time(pred, gt, dist, path):
-    error_list = []
-    for i,j in path:
-        error = dist(pred[i], gt[j])
-        error_list.append(error)
+    # error_list = []
+    # for i,j in path:
+    #     error = dist(pred[i], gt[j])
+    #     error_list.append(error)
     
+    error_list = [0] * len(gt)
+    for i,j in path:
+        error = dist(pred[i],gt[j])
+        error_list[j] = error
     return error_list
