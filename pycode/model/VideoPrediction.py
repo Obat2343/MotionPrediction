@@ -247,7 +247,7 @@ class VIDEO_HOURGLASS(nn.Module):
         else:
             end_pose_index = 4
 
-        RGB, POSE = inputs['rgb'], inputs['pose'][:,:end_pose_index]
+        RGB, POSE = inputs['rgb'], inputs['heatmap'][:,:end_pose_index]
         
         B,S,C,H,W = POSE.shape
         output_dict = {}
@@ -295,10 +295,10 @@ class VIDEO_HOURGLASS(nn.Module):
         # d = n0 - n1
         out = self.decoder([u, u0])
         if self.use_depth:
-            output_dict['rgb'] = out[0]
+            output_dict['rgb'] = torch.clamp(out[0], 0, 1)
             output_dict['depth'] = out[1]
         else:
-            output_dict['rgb'] = out
+            output_dict['rgb'] = torch.clamp(out, 0, 1)
         
         return output_dict
         # return out * m + x * (1 - m), w, out

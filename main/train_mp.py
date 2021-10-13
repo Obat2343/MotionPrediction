@@ -113,15 +113,11 @@ train_dataloader = DataLoader(train_dataset, batch_size=cfg.BASIC.BATCH_SIZE, sh
 val_dataloader = DataLoader(val_dataset, batch_size=cfg.BASIC.BATCH_SIZE, shuffle=True, num_workers=cfg.BASIC.WORKERS)
 
 # set model
-model = build_model_MP(cfg)
+model = build_model_MP(cfg, args)
 
-if (args.vp_path != "") and (cfg.SEQUENCE_HOUR.USE_VIDEOMODEL):
-    vp_path = os.path.join(args.vp_path, 'vp.pth')
-    model.video_pred_model, _, _, _, _ = load_checkpoint(model.video_pred_model, vp_path, fix_parallel=True)
-
-if (len(args.hourglass_path) != 0) and cfg.MP_MODEL_NAME == 'sequence_hourglass':
-    print("load hourglass")
-    model.hour_glass, _, _, _, _ = load_checkpoint(model.hour_glass, args.hourglass_path, fix_parallel=True)
+# set optimizer
+optimizer = build_optimizer(cfg, model, 'mp')
+scheduler = StepLR(optimizer, step_size=cfg.SCHEDULER.STEPLR.STEP_SIZE, gamma=cfg.SCHEDULER.STEPLR.GAMMA)
 
 model = torch.nn.DataParallel(model, device_ids = list(range(cfg.BASIC.NUM_GPU)))
 model = model.to(device)
@@ -130,10 +126,6 @@ model = model.to(device)
 train_loss = Train_Loss_sequence_hourglass(cfg, device)
 val_loss = Train_Loss_sequence_hourglass(cfg, device)
 
-# set optimizer
-optimizer = build_optimizer(cfg, model, 'mp')
-scheduler = StepLR(optimizer, step_size=cfg.SCHEDULER.STEPLR.STEP_SIZE, gamma=cfg.SCHEDULER.STEPLR.GAMMA)
-
 # load checkpoint
 if args.checkpoint_path != None:
     checkpoint_path = os.path.join(args.checkpoint_path, 'mp.pth')
@@ -141,6 +133,7 @@ if args.checkpoint_path != None:
     if cfg.LOAD_MODEL == 'all':
         model, optimizer, start_epoch, start_iter, scheduler = load_checkpoint(model, checkpoint_path, optimizer=optimizer, scheduler=scheduler)
     elif cfg.LOAD_MODEL == 'model_only':
+        # dose tukawan kara nokosu. keshitemoiiyo
         model, _, _, _, _ = load_checkpoint(model, checkpoint_path)
         start_epoch, start_iter = 0, 1
 else:
@@ -151,7 +144,7 @@ tic = time.time()
 end = time.time()
 trained_time = 0
 # max_iter = cfg.BASIC.MAX_EPOCH * len(train_dataloader)
-max_iter = 100
+max_iter = cfg.BASIC.MAX_ITER
 time_dict = Time_dict()
 load_start = time.time()
 
@@ -207,7 +200,7 @@ for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
             checkpoint_dir = os.path.join(model_path,'checkpoint_iter{}'.format(total_iteration))
             os.makedirs(checkpoint_dir, exist_ok=True)
             cp_path = os.path.join(checkpoint_dir, 'mp.pth')
-            save_checkpoint(model, optimizer, epoch, iteration, cp_path, scheduler)
+            # save_checkpoint(model, optimizer, epoch, iteration, cp_path, scheduler)
             
             # save output image
             for i, inputs in enumerate(train_dataloader, 1):

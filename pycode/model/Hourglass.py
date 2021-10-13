@@ -4,7 +4,7 @@ import numpy as np
 from .base_networks import ConvBlock, SoftArgmax2D, SigmoidArgmax2D, hourglass_module, ResidualBlock
 from .tools import compute_rotation_matrix_from_ortho6d as compute_rm
 from .VideoPrediction import VIDEO_HOURGLASS
-
+from ..misc import make_pos_image
 class stacked_hourglass_model(torch.nn.Module):
     def __init__(self, cfg, input_dim=3, output_dim=1, pred_len='none', device='cuda'):
         super(stacked_hourglass_model, self).__init__()
@@ -188,13 +188,13 @@ class stacked_hourglass_model(torch.nn.Module):
         if self.input_pose:
 
             if self.input_past:
-                pose_heatmap = inputs['pose'][:,:self.past_len + 1].to(self.device) #B,2,C,H,W
+                pose_heatmap = inputs['heatmap'][:,:self.past_len + 1].to(self.device) #B,2,C,H,W
                 B,S,C,H,W = pose_heatmap.shape
                 pose_heatmap = pose_heatmap.view(B,-1,H,W)
                 C = S * C
                 start_index = 0
             else:
-                pose_heatmap = inputs['pose'][:,self.past_len].to(self.device) #B,C,H,W
+                pose_heatmap = inputs['heatmap'][:,self.past_len].to(self.device) #B,C,H,W
                 B,C,H,W = pose_heatmap.shape
                 S = 1
                 start_index = self.past_len
@@ -495,7 +495,9 @@ class sequence_hourglass(torch.nn.Module):
         for sequence_id in range(S-2):
             model_inputs = self.make_hourglass_input(inputs, outputs_history_dict, sequence_id, mp_mode)
             outputs = self.hour_glass(model_inputs)
-
+            pos_image = make_pos_image((W,H), outputs['uv'][:,0,-1].to('cpu'),inputs['uv_mask'][:,sequence_id+2])
+            pos_image = torch.unsqueeze(pos_image, 1)
+            
             if sequence_id < S-3:
                 if mp_mode == 1: # input dataset image
                     output_image = inputs['rgb'][:,sequence_id+2].to(self.device) # rgb loss will be 0
@@ -505,19 +507,24 @@ class sequence_hourglass(torch.nn.Module):
                     if self.use_video_pred_model:
                         video_inputs = self.make_videomodel_input(inputs, outputs, sequence_id, vp_mode)
                         video_outputs = self.video_pred_model(video_inputs)
-                        output_image = torch.unsqueeze(video_outputs['rgb'], 1) # Batch,C,H,W -> Batch,Block,C,H,W
-                        output_image = torch.unsqueeze(output_image, 1) # B,B,C,H,W -> Batch,S,Block,C,H,W
+                        output_image = video_outputs['rgb']
                         if self.input_depth:
-                            output_depth = torch.unsqueeze(video_outputs['depth'], 1)
-                            output_depth = torch.unsqueeze(output_depth, 1)
+                            output_depth = video_outputs['depth']
                     else:
                         raise ValueError('not implement rotation')
+
+                output_image = torch.unsqueeze(output_image, 1) # Batch,C,H,W -> Batch,Block,C,H,W
+                output_image = torch.unsqueeze(output_image, 1) # B,B,C,H,W -> Batch,S,Block,C,H,W
+                if self.input_depth:
+                    output_depth = torch.unsqueeze(output_depth, 1)
+                    output_depth = torch.unsqueeze(output_depth, 1)
 
             if sequence_id == 0:
                 outputs_history_dict['uv'] = outputs['uv']
                 outputs_history_dict['heatmap'] = outputs['heatmap']
                 outputs_history_dict['pose'] = outputs['pose']
                 outputs_history_dict['rgb'] = output_image
+                outputs_history_dict['pose_map'] = pos_image
                 if self.input_depth:
                     outputs_history_dict['depth'] = output_depth
                 if self.pred_rotation:
@@ -531,6 +538,7 @@ class sequence_hourglass(torch.nn.Module):
                 outputs_history_dict['heatmap'] = torch.cat((outputs_history_dict['heatmap'], outputs['heatmap']), 1)
                 outputs_history_dict['pose'] = torch.cat((outputs_history_dict['pose'], outputs['pose']), 1)
                 outputs_history_dict['rgb'] = torch.cat((outputs_history_dict['rgb'],output_image), 1)
+                outputs_history_dict['pose_map'] = torch.cat((outputs_history_dict['pose_map'], pos_image), 1)
                 if self.input_depth:
                     outputs_history_dict['depth'] = torch.cat((outputs_history_dict['depth'], output_depth), 1)
                 if self.pred_rotation:
@@ -554,7 +562,7 @@ class sequence_hourglass(torch.nn.Module):
         data_dict = {}
         if mode == 1:
             data_dict['rgb'] = inputs['rgb'][:,sequence_id:sequence_id+self.past_len+1].to(self.device)
-            data_dict['pose'] = inputs['pose'][:,sequence_id:sequence_id+self.past_len+1].to(self.device)
+            data_dict['heatmap'] = inputs['heatmap'][:,sequence_id:sequence_id+self.past_len+1].to(self.device)
             data_dict['pose_xyz'] = inputs['pose_xyz'][:,sequence_id:sequence_id+self.past_len+1].to(self.device)
             if self.input_depth:
                 data_dict['depth'] = inputs['depth'][:,sequence_id:sequence_id+self.past_len+1].to(self.device)
@@ -565,7 +573,7 @@ class sequence_hourglass(torch.nn.Module):
         elif mode == 2:
             if sequence_id == 0:
                 data_dict['rgb'] = inputs['rgb'][:,0:self.past_len+1].to(self.device)
-                data_dict['pose'] = inputs['pose'][:,0:self.past_len+1].to(self.device)
+                data_dict['heatmap'] = inputs['heatmap'][:,0:self.past_len+1].to(self.device)
                 data_dict['pose_xyz'] = inputs['pose_xyz'][:,0:self.past_len+1].to(self.device)
                 if self.input_depth:
                     data_dict['depth'] = inputs['depth'][:,0:self.past_len+1].to(self.device)
@@ -575,16 +583,13 @@ class sequence_hourglass(torch.nn.Module):
                     data_dict['grasp'] = inputs['grasp'][:,0:self.past_len+1].to(self.device)
             elif sequence_id < self.past_len + 1:
                 data_dict['rgb'] = torch.cat((inputs['rgb'][:,sequence_id:self.past_len+1].to(self.device), outputs_history_dict['rgb'][:,-sequence_id:,-1]), 1)
-                data_dict['pose'] = torch.cat((inputs['pose'][:,sequence_id:self.past_len+1].to(self.device), outputs_history_dict['heatmap'][:,-sequence_id:,-1]), 1)
+                data_dict['heatmap'] = torch.cat((inputs['heatmap'][:,sequence_id:self.past_len+1].to(self.device), outputs_history_dict['pose_map'][:,-sequence_id:].to(self.device)), 1)
+                # data_dict['heatmap'] = inputs['heatmap'][:,sequence_id:sequence_id+self.past_len+1].to(self.device)
                 B, _, _ = outputs_history_dict['pose'][-1][-1].shape
 
                 dataset_xyz = inputs['pose_xyz'][:,sequence_id:self.past_len+1].to(self.device) # B, S, Dim_pose
                 B,S,D = dataset_xyz.shape
                 output_xyz = outputs_history_dict['pose'][:,-sequence_id:,-1].contiguous().view(B, -1, D)
-                # output_xyz = torch.cat([torch.unsqueeze(intermidiate_pose[-1].contiguous().view(B, -1),1) for intermidiate_pose in outputs_history_dict['pose'][-sequence_id:]], 1)
-                # output_xyz = outputs_history_dict['pose'][-1][-1]
-                # B, _, _ = output_xyz.shape # Batch, Num_sequence, Num_Pose(21), 3
-                # output_xyz = torch.unsqueeze(output_xyz.contiguous().view(B, -1),1) 
                 data_dict['pose_xyz'] = torch.cat((dataset_xyz, output_xyz), 1)
 
                 if self.input_depth:
@@ -595,7 +600,8 @@ class sequence_hourglass(torch.nn.Module):
                     data_dict['grasp'] = torch.cat((inputs['grasp'][:,sequence_id:self.past_len+1].to(self.device), outputs_history_dict['grasp'][:,-sequence_id:,-1, 0]), 1)
             else:
                 data_dict['rgb'] = outputs_history_dict['rgb'][:,-(self.past_len + 1):,-1]
-                data_dict['pose'] = outputs_history_dict['heatmap'][:,-(self.past_len + 1):,-1]
+                data_dict['heatmap'] = outputs_history_dict['pose_map'][:,-(self.past_len + 1):].to(self.device)
+                # data_dict['heatmap'] = inputs['heatmap'][:,0:self.past_len+1].to(self.device)
                 dataset_xyz = inputs['pose_xyz'] # B, S, Dim_pose
                 B,S,D = dataset_xyz.shape
                 data_dict['pose_xyz'] = outputs_history_dict['pose'][:,-(self.past_len + 1):,-1].contiguous().view(B, -1, D)
@@ -624,37 +630,66 @@ class sequence_hourglass(torch.nn.Module):
 
         if mode == 1:
             t1_heatmap = outputs['heatmap'][:,-1:,-1]
+            t1_pose = outputs['pose'][:,-1:,-1, 0]
+            t1_rotation = outputs['rotation'][:,-1:,-1]
+            t1_grasp = outputs['grasp'][:,-1:,-1, 0]
         elif mode == 2:
-            t1_heatmap = inputs['pose'][:,sequence_id+2:sequence_id+3].to(self.device)
+            t1_heatmap = inputs['heatmap'][:,sequence_id+2:sequence_id+3].to(self.device)
+            t1_pose = inputs['pose_xyz'][:,sequence_id+2:sequence_id+3].to(self.device)
+            t1_rotation = inputs['rotation_matrix'][:,sequence_id+2:sequence_id+3].to(self.device)
+            t1_grasp = inputs['grasp'][:,sequence_id+2:sequence_id+3].to(self.device)
 
         if self.video_pred_model.mode == 'pcf':
             index_list = [sequence_id, sequence_id+1, sequence_id+3]
             data_dict['rgb'] = inputs['rgb'][:,index_list].to(self.device)
             if self.input_depth:
                 data_dict['depth'] = inputs['depth'][:,index_list].to(self.device)
-            pose_heatmap = inputs['pose'][:,sequence_id:sequence_id+4].to(self.device)
-            data_dict['pose'] = torch.cat((pose_heatmap[:,:2], t1_heatmap, pose_heatmap[:,3:]), 1)
-            data_dict['pose_xyz'] = inputs['pose_xyz'][:,sequence_id:sequence_id+4].to(self.device)
-            data_dict['rotation_matrix'] = inputs['rotation_matrix'][:,sequence_id:sequence_id+4].to(self.device)
-            data_dict['grasp'] = inputs['grasp'][:,sequence_id:sequence_id+4].to(self.device)
+            
+            pose_heatmap = inputs['heatmap'][:,sequence_id:sequence_id+4].to(self.device)
+            data_dict['heatmap'] = torch.cat((pose_heatmap[:,:2], t1_heatmap, pose_heatmap[:,3:]), 1)
+            
+            pose_xyz = inputs['pose_xyz'][:,sequence_id:sequence_id+4].to(self.device)
+            data_dict['pose_xyz'] = torch.cat((pose_xyz[:,:2], t1_pose, pose_xyz[:,3:]), 1)
+
+            rotation_matrix = inputs['rotation_matrix'][:,sequence_id:sequence_id+4].to(self.device)
+            data_dict['rotation_matrix'] = torch.cat((rotation_matrix[:,:2], t1_rotation, rotation_matrix[:,3:]), 1)
+
+            grasp = inputs['grasp'][:,sequence_id:sequence_id+4].to(self.device)
+            data_dict['grasp'] = torch.cat((grasp[:,:2], t1_grasp, grasp[:,3:]), 1)
+
         elif self.video_pred_model.mode == 'pc':
             index_list = [sequence_id, sequence_id+1]
             data_dict['rgb'] = inputs['rgb'][:,index_list].to(self.device)
             if self.input_depth:
                 data_dict['depth'] = inputs['depth'][:,index_list].to(self.device)
-            pose_heatmap = inputs['pose'][:,sequence_id:sequence_id+3].to(self.device)
-            data_dict['pose'] = torch.cat((pose_heatmap[:,:2], t1_heatmap), 1)
-            data_dict['pose_xyz'] = inputs['pose_xyz'][:,:3].to(self.device)
-            data_dict['rotation_matrix'] = inputs['rotation_matrix'][:,:3].to(self.device)
-            data_dict['grasp'] = inputs['grasp'][:,:3].to(self.device)
+            
+            pose_heatmap = inputs['heatmap'][:,sequence_id:sequence_id+3].to(self.device)
+            data_dict['heatmap'] = torch.cat((pose_heatmap[:,:2], t1_heatmap), 1)
+            
+            pose_xyz = inputs['pose_xyz'][:,sequence_id:sequence_id+3].to(self.device)
+            data_dict['pose_xyz'] = torch.cat((pose_xyz[:,:2], t1_pose), 1)
+            
+            rotation_matrix = inputs['rotation_matrix'][:,sequence_id:sequence_id+3].to(self.device)
+            data_dict['rotation_matrix'] = torch.cat((rotation_matrix[:,:2], t1_rotation), 1)
+            
+            grasp = inputs['grasp'][:,sequence_id:sequence_id+3].to(self.device)
+            data_dict['grasp'] = torch.cat((grasp[:,:2], t1_grasp), 1)
+
         elif self.video_pred_model.mode == 'c':
             data_dict['rgb'] = inputs['rgb'][:,1].to(self.device)
             if self.input_depth:
                 data_dict['depth'] = inputs['depth'][:,1].to(self.device)
-            pose_heatmap = inputs['pose'][:,1:3].to(self.device)
-            data_dict['pose'] = torch.cat((pose_heatmap[:,:1], t1_heatmap), 1)
-            data_dict['pose_xyz'] = inputs['pose_xyz'][:,1:3].to(self.device)
-            data_dict['rotation_matrix'] = inputs['rotation_matrix'][:,1:3].to(self.device)
-            data_dict['grasp'] = inputs['grasp'][:,1:3].to(self.device)
+            
+            pose_heatmap = inputs['heatmap'][:,1:3].to(self.device)
+            data_dict['heatmap'] = torch.cat((pose_heatmap[:,:1], t1_heatmap), 1)
+            
+            pose_xyz = inputs['pose_xyz'][:,1:3].to(self.device)
+            data_dict['pose_xyz'] = torch.cat((pose_xyz[:,:1], t1_pose), 1)
+            
+            rotation_matrix = inputs['rotation_matrix'][:,1:3].to(self.device)
+            data_dict['rotation_matrix'] = torch.cat((rotation_matrix[:,:1], t1_rotation), 1)
+            
+            grasp = inputs['grasp'][:,1:3].to(self.device)
+            data_dict['grasp'] = torch.cat((grasp[:,:1], t1_grasp), 1)
             
         return data_dict

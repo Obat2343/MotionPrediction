@@ -8,7 +8,7 @@ _C.GOAL_INPUT = False # TODO
 _C.STEP = 1 # 1 or 2
 _C.PRED_LEN = 3
 _C.PAST_LEN = 1
-
+_C.SKIP_LEN = 1
 ###############################
 # BASIC #######################
 ###############################

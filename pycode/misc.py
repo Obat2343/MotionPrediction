@@ -3,14 +3,14 @@ import json
 import os
 import cv2
 import numpy as np
+from numpy.core.numeric import zeros_like
 import torch
 import torchvision
 import torch_optimizer as new_optim
 from collections import OrderedDict
 from torchvision import datasets, models, transforms
 from PIL import Image, ImageDraw, ImageOps
-from .dataset import Softargmax_dataset, Softargmax_dataset_VP, Softargmax_dataset_test, RLBench_dataset, RLBench_dataset_VP, RLBench_dataset_test, RLBench_dataset3, RLBench_dataset3_VP
-from .model.Hourglass import stacked_hourglass_model, sequence_hourglass
+from .dataset import Softargmax_dataset, Softargmax_dataset_VP, RLBench_dataset, RLBench_dataset_VP, RLBench_dataset3, RLBench_dataset3_VP, RLBench_dataset_skip, RLBench_dataset_VP_skip
 import time
 from fastdtw import fastdtw # https://github.com/slaypni/fastdtw
 from scipy.spatial.distance import euclidean
@@ -29,9 +29,9 @@ def build_dataset_MP(cfg, save_dataset=False, mode='train'):
             dataset = RLBench_dataset(cfg, save_dataset=save_dataset, mode=mode)
     elif (cfg.DATASET.NAME == 'RLBench3') or (cfg.DATASET.NAME == 'RLBench4'):
         if mode == 'train':
-            dataset = RLBench_dataset3(cfg, save_dataset=save_dataset, mode=mode, dataset_name=cfg.DATASET.NAME)
+            dataset = RLBench_dataset_skip(cfg, save_dataset=save_dataset, mode=mode)
         elif mode == 'val':
-            dataset = RLBench_dataset3(cfg, save_dataset=save_dataset, mode=mode, dataset_name=cfg.DATASET.NAME)
+            dataset = RLBench_dataset_skip(cfg, save_dataset=save_dataset, mode=mode)
 
     return dataset
 
@@ -52,15 +52,16 @@ def build_dataset_VP(cfg, save_dataset=False, mode='train'):
             dataset = RLBench_dataset_VP(cfg, save_dataset=save_dataset, mode='val', random_len=1)
     elif (cfg.DATASET.NAME == 'RLBench3') or (cfg.DATASET.NAME == 'RLBench4'):
         if mode == 'train':
-            dataset = RLBench_dataset3_VP(cfg, save_dataset=save_dataset, mode=mode, dataset_name=cfg.DATASET.NAME)
+            dataset = RLBench_dataset_VP_skip(cfg, save_dataset=save_dataset, mode=mode)
         elif mode == 'val':
-            dataset = RLBench_dataset3_VP(cfg, save_dataset=save_dataset, mode=mode, dataset_name=cfg.DATASET.NAME)
+            dataset = RLBench_dataset_VP_skip(cfg, save_dataset=save_dataset, mode=mode)
         elif mode == 'test':
-            dataset = RLBench_dataset3_VP(cfg, save_dataset=save_dataset, mode='val', random_len=1, dataset_name=cfg.DATASET.NAME)
+            dataset = RLBench_dataset_VP_skip(cfg, save_dataset=save_dataset, mode='val', random_len=0)
     
     return dataset
 
-def build_model_MP(cfg):
+def build_model_MP(cfg, args):
+    from .model.Hourglass import stacked_hourglass_model, sequence_hourglass
     if cfg.DATASET.NAME == 'HMD':
         output_dim = 21
     elif 'RLBench' in cfg.DATASET.NAME:
@@ -72,6 +73,17 @@ def build_model_MP(cfg):
     elif cfg.MP_MODEL_NAME == 'sequence_hourglass':
         print('use sequence hourglass')
         model = sequence_hourglass(cfg, output_dim=output_dim)
+        if (args.vp_path != "") and (cfg.SEQUENCE_HOUR.USE_VIDEOMODEL):
+            print("load vp")
+            vp_path = os.path.join(args.vp_path, 'vp.pth')
+            model.video_pred_model, _, _, _, _ = load_checkpoint(model.video_pred_model, vp_path, fix_parallel=True)
+
+        if (len(args.hourglass_path) != 0) and cfg.MP_MODEL_NAME == 'sequence_hourglass':
+            print("load hourglass")
+            model.hour_glass, _, _, _, _ = load_checkpoint(model.hour_glass, args.hourglass_path, fix_parallel=True)
+        
+        for param in model.video_pred_model.parameters():
+            param.requires_grad = False
     return model
 
 def build_optimizer(cfg, model, model_type='vp'):
@@ -87,7 +99,7 @@ def build_optimizer(cfg, model, model_type='vp'):
 
     if name == "sgd":
         optimizer = torch.optim.SGD(
-            model.parameters(),
+            filter(lambda p:p.requires_grad, model.parameters()),
             lr = lr,
             momentum = cfg.OPTIM.SGD.MOMENTUM,
             dampening = cfg.OPTIM.SGD.DAMPENING,
@@ -96,7 +108,7 @@ def build_optimizer(cfg, model, model_type='vp'):
         )
     elif name == "adam":
         optimizer = torch.optim.Adam(
-            model.parameters(),
+            filter(lambda p:p.requires_grad, model.parameters()),
             lr= lr,
             betas=(cfg.OPTIM.RADAM.BETA1, cfg.OPTIM.RADAM.BETA2),
             eps=cfg.OPTIM.RADAM.EPS,
@@ -104,7 +116,7 @@ def build_optimizer(cfg, model, model_type='vp'):
         )
     elif name == "radam":
         optimizer = new_optim.RAdam(
-            model.parameters(),
+            filter(lambda p:p.requires_grad, model.parameters()),
             lr= lr,
             betas=(cfg.OPTIM.RADAM.BETA1, cfg.OPTIM.RADAM.BETA2),
             eps=cfg.OPTIM.RADAM.EPS,
@@ -200,10 +212,10 @@ class debug_set(object):
 def save_outputs(inputs, outputs, path, index, cfg, mode='train'):
     uv_list, heatmap_list, pose_list = outputs['uv'], outputs['heatmap'], outputs['pose']
     Batch, Seq, Block, C, H, W = heatmap_list.shape
+    heatmaps = convert_heatmaps(heatmap_list[:,:,-1])
     for sequence_id in range(Seq):
-        heatmap = convert_heatmap(heatmap_list[:,sequence_id,-1])
-
-        #gt_current_pose_image = torch.unsqueeze(torch.unsqueeze(torch.sum(inputs['pose'],dim=1),1),1)
+        heatmap = heatmaps[:,sequence_id]
+        #gt_current_pose_image = torch.unsqueeze(torch.unsqueeze(torch.sum(inputs['heatmap'],dim=1),1),1)
         #gt_future_pose_image = torch.unsqueeze(torch.sum(inputs['future_pose_image'],dim=2),2)
 
         # save rgb image
@@ -223,24 +235,16 @@ def save_outputs(inputs, outputs, path, index, cfg, mode='train'):
         pos_image = make_pos_image((W,H),uv_list[:,sequence_id,-1].to('cpu'),inputs['uv_mask'][:,sequence_id+2])
         overlay_image = make_overlay_image(inputs['rgb'][:,sequence_id+1], pos_image)
         pos_image_gt = make_pos_image((W,H),inputs['uv'][:,2+sequence_id],inputs['uv_mask'][:,2+sequence_id])
-        overlay_image_gt = make_overlay_image(inputs['rgb'][:,sequence_id+1], pos_image)
+        overlay_image_gt = make_overlay_image(inputs['rgb'][:,sequence_id+1], pos_image_gt)
         uv_images = torch.cat((overlay_image, overlay_image_gt), 0)
         save_uv_path = os.path.join(path,'{}_image_uv_{}_{}.jpg'.format(mode, index, sequence_id))
         torchvision.utils.save_image(uv_images, save_uv_path, nrow=cfg.BASIC.BATCH_SIZE)
-        
+
         # save output image
         if cfg.HOURGLASS.PRED_RGB:
             sequence_image = torch.cat((outputs['rgb'][:,sequence_id,-1].to('cpu'),inputs['rgb'][:,sequence_id+2]),0)
             save_image_path = os.path.join(model_path,'checkpoint_epoch{}_iter{}'.format(epoch,iteration),'{}_image_output_{}_{}.jpg'.format(mode, index, sequence_id))
             torchvision.utils.save_image(sequence_image, save_image_path,nrow=cfg.BASIC.BATCH_SIZE)
-
-        # save rotation image
-        if cfg.HOURGLASS.PRED_ROTATION:
-            rotation_image = make_rotation_image(inputs['rgb'][:,sequence_id+1:sequence_id+2], torch.unsqueeze(outputs['rotation'][:,sequence_id,-1],1), outputs['pose'][:,sequence_id,-1], inputs['mtx'])
-            rotation_gt_image = make_rotation_image(inputs['rgb'][:,sequence_id+1:sequence_id+2], inputs['rotation_matrix'][:,sequence_id+1:sequence_id+2], inputs['pose_xyz'][:,sequence_id+1:sequence_id+2], inputs['mtx'])
-            rotation_images = torch.cat((rotation_image, rotation_gt_image), 0)
-            save_rotation_path = os.path.join(path,'{}_rotation_{}_{}.jpg'.format(mode, index, sequence_id))
-            torchvision.utils.save_image(rotation_images, save_rotation_path, nrow=cfg.BASIC.BATCH_SIZE)
         
         # save trajectory
         if cfg.HOURGLASS.PRED_TRAJECTORY:
@@ -249,6 +253,25 @@ def save_outputs(inputs, outputs, path, index, cfg, mode='train'):
             trajectory_images = torch.cat((trajectory_image, trajectory_gt), 0)
             save_trajectory_path = os.path.join(path,'{}_trajectory_{}_{}.jpg'.format(mode, index, sequence_id))
             torchvision.utils.save_image(trajectory_images, save_trajectory_path, nrow=cfg.BASIC.BATCH_SIZE)
+    
+
+    # save rotation image
+    if cfg.HOURGLASS.PRED_ROTATION:
+        rotation_image = make_rotation_image(inputs['rgb'][:,2:], outputs['rotation'][:,:,-1], outputs['pose'][:,:,-1,0], inputs['mtx'])
+        rotation_gt_image = make_rotation_image(inputs['rgb'][:,2:], inputs['rotation_matrix'][:,2:], inputs['pose_xyz'][:,2:], inputs['mtx'])
+        rotation_images = torch.cat((rotation_image, rotation_gt_image), 0)
+        rotation_images = rotation_images.view(-1, 3, H, W)
+        save_rotation_path = os.path.join(path,'{}_rotation_{}.jpg'.format(mode, index))
+        torchvision.utils.save_image(rotation_images, save_rotation_path, nrow=Seq)
+
+    if Seq > 2:
+        rotation_gt_image = make_rotation_image(inputs['rgb'][:,2:], inputs['rotation_matrix'][:,2:], inputs['pose_xyz'][:,2:], inputs['mtx'])
+        rotation_image = make_rotation_image(outputs["rgb"][:,:,-1].to('cpu'), outputs['rotation'][:,:,-1], outputs['pose'][:,:,-1,0], inputs['mtx'])
+        pose_overlay_images = make_overlay_image_and_heatmaps(outputs["rgb"][:,:,-1].to('cpu'),outputs["heatmap"][:,:,-1].to('cpu'))
+        images_tensor = torch.cat([inputs["rgb"][:,2:], rotation_gt_image.to('cpu'), outputs["rgb"][:,:,-1].to('cpu'), rotation_image.to('cpu'), pose_overlay_images.to('cpu')], 1)
+        images_tensor = images_tensor.view(-1, 3, H, W)
+        save_images_path = os.path.join(path,'{}_seq_image_{}.jpg'.format(mode, index))
+        torchvision.utils.save_image(images_tensor, save_images_path, nrow=Seq)
 
 def save_outputs_vp(inputs, outputs, path, index, cfg, mode='train'):
     pred_image = outputs['rgb'].cpu()
@@ -278,6 +301,18 @@ def convert_heatmap(heatmap):
     max_value = max_value.view(B, C, H, W)
     heatmap = heatmap / max_value
     return heatmap
+
+def convert_heatmaps(heatmaps):
+    B, S, C, H, W = heatmaps.shape
+    for s in range(S):
+        heatmap = heatmaps[:,s]
+        max_value = torch.max(heatmap.view(B,C,-1),2)[0]
+        max_value = torch.unsqueeze(max_value,2)
+        max_value = max_value.expand(B,C,H*W)
+        max_value = max_value.view(B, C, H, W)
+        heatmap = heatmap / max_value
+        heatmaps[:,s] = heatmap
+    return heatmaps
 
 def draw_matrix(image, rotation_matrix, pos_vector, intrinsic_matrix):
     """
@@ -324,12 +359,13 @@ def make_rotation_image(rgb, rotation_matrix, pose_vec, intrinsic_matrix):
     """
 
     B, S, C, H, W = rgb.shape
+    image_sequence = torch.zeros(B, S, C, H, W)
     topil = transforms.ToPILImage()
     totensor = transforms.ToTensor()
     for b in range(B):
         for s in range(S):
             # make pil image with rotation 
-            image_pil = topil(rgb[b,s])
+            image_pil = topil(torch.clamp(rgb[b,s], 0, 1))
             rotation_np = rotation_matrix[b,s].cpu().numpy()
 
             pos_vec_np = pose_vec[b,s].cpu().numpy()
@@ -340,11 +376,12 @@ def make_rotation_image(rgb, rotation_matrix, pose_vec, intrinsic_matrix):
             # to tensor batch
             image_tensor = totensor(image_pil)
             image_tensor = torch.unsqueeze(image_tensor, 0)
-
-            if (s == 0) and (b == 0):
-                image_sequence = image_tensor
-            else:
-                image_sequence = torch.cat((image_sequence, image_tensor),0)
+            
+            image_sequence[b,s] = image_tensor
+            # if (s == 0) and (b == 0):
+            #     image_sequence = image_tensor
+            # else:
+            #     image_sequence = torch.cat((image_sequence, image_tensor),0)
     
     return image_sequence
 
@@ -354,6 +391,15 @@ def make_overlay_image(rgb, pose_image):
     red_image[:,0:1] = torch.clamp(pose_image, 0, 1)
 
     pose_image_rgb = torch.cat((pose_image, pose_image, pose_image), 1)
+    over_image = torch.where(pose_image_rgb.cpu() >= 1, red_image, rgb.cpu())
+    return over_image
+
+def make_overlay_images(rgb, pose_image):
+    B, S, C, H, W = pose_image.shape
+    red_image = torch.zeros(B, S, 3, H, W)
+    red_image[:,:,0:1] = torch.clamp(pose_image, 0, 1)
+
+    pose_image_rgb = torch.cat((pose_image, pose_image, pose_image), 2)
     over_image = torch.where(pose_image_rgb.cpu() >= 1, red_image, rgb.cpu())
     return over_image
 
@@ -370,14 +416,29 @@ def make_overlay_image_and_heatmap(rgb, heatmap):
             over_image_batch = torch.cat((over_image_batch, torch.unsqueeze(over_image, 1)), 1)
     return over_image_batch
 
+def make_overlay_image_and_heatmaps(rgbs, heatmaps):
+    B, S, C, H, W = heatmaps.shape
+    for i in range(C):
+        red_image = torch.zeros(B, S, 3, H, W)
+        red_image[:,:,0] = torch.clamp(heatmaps[:,:,i], 0, 1)
+
+        over_image = 0.3*rgbs + 0.7*red_image
+        if i == 0:
+            over_image_batch = torch.unsqueeze(over_image, 2)
+        else:
+            over_image_batch = torch.cat((over_image_batch, torch.unsqueeze(over_image, 2)), 2)
+    if C != 1:
+        raise ValueError("TODO change")
+    return over_image_batch[:,:,0] # if C is larger than 1. please change
+
 def make_pos_image(size,uv_data,uv_mask,r=3):
     B, C, _ = uv_data.shape
     totensor = transforms.ToTensor()
-    uv_data = uv_data.numpy()
+    uv_data_np = uv_data.detach().numpy()
     for b in range(B):
         pos_image = Image.new('L',size)
         draw = ImageDraw.Draw(pos_image)
-        for uv,mask_uv in zip(uv_data[b],uv_mask[b]):
+        for uv,mask_uv in zip(uv_data_np[b],uv_mask[b]):
             u,v = int(uv[0]), int(uv[1])
             u_mask, v_mask = mask_uv[0], mask_uv[1]
             if (u_mask == 0) and (v_mask == 0):
