@@ -17,7 +17,7 @@ LOSS:
   GP:
     WEIGHT: 0.01
 VIDEO_HOUR:
-  MODE: 'pcf'
+  MODE: 'pc'
   INPUT_DEPTH: False
   INPUT_Z: True
   INPUT_ROTATION: True

@@ -200,7 +200,7 @@ for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
             checkpoint_dir = os.path.join(model_path,'checkpoint_iter{}'.format(total_iteration))
             os.makedirs(checkpoint_dir, exist_ok=True)
             cp_path = os.path.join(checkpoint_dir, 'mp.pth')
-            # save_checkpoint(model, optimizer, epoch, iteration, cp_path, scheduler)
+            save_checkpoint(model, optimizer, epoch, iteration, cp_path, scheduler)
             
             # save output image
             for i, inputs in enumerate(train_dataloader, 1):

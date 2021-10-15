@@ -2867,6 +2867,7 @@ class RLBench_dataset_VP_skip(RLBench_dataset3):
         self.use_front_depth = cfg.VIDEO_HOUR.INPUT_DEPTH
         self.pred_len = 1
         self.skip_len = cfg.SKIP_LEN
+
         print('length of future is {} frame'.format(self.pred_len))
         
         self.seed = 0
@@ -2876,6 +2877,9 @@ class RLBench_dataset_VP_skip(RLBench_dataset3):
         else:
             self.random_len = random_len 
         
+        if self.random_len > self.skip_len:
+            raise ValueError("please check the random len value")
+
         task_names = self.get_task_names(cfg.DATASET.RLBENCH.TASK_LIST)
         self._json_file_name = '{}_VP_{}_{}{}_skip_{}.json'.format(cfg.DATASET.NAME,mode,self.pred_len,task_names,self.skip_len)
         json_path = os.path.join(data_root_dir, 'json', self._json_file_name)

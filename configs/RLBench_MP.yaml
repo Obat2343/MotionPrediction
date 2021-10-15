@@ -1,9 +1,9 @@
-MP_MODEL_NAME: 'hourglass' # hourglass, sequence_hourglass
-PRED_LEN: 1
+MP_MODEL_NAME: 'sequence_hourglass' # hourglass, sequence_hourglass
+PRED_LEN: 8
 PAST_LEN: 1
-SKIP_LEN: 5
+SKIP_LEN: 1
 OPTIM:
-  MPLR: 0.0001
+  MPLR: 0.00001
 SCHEDULER:
   STEPLR:
     STEP_SIZE: 15000
@@ -13,8 +13,8 @@ DATASET:
     TASK_LIST: ['PickUpCup'] # PickUpCup PutKnifeOnChoppingBoard PutRubbishInBin StackWine TakePlateOffColoredDishRack
     # PATH4: '/home-local/tendon/dataset/RLBench4'
 BASIC:
-  NUM_GPU: 2
-  BATCH_SIZE: 4
+  NUM_GPU: 1
+  BATCH_SIZE: 1
   WORKERS: 4
   MAX_ITER: 150000
 LOAD_MODEL: 'all'
@@ -25,11 +25,11 @@ HOURGLASS:
   PRED_RGB: False
   PRED_ROTATION: True
   PRED_GRASP: True
-  PRED_TRAJECTORY: False
+  PRED_TRAJECTORY: True
   INPUT_PAST: True
   INPUT_ROTATION: True
   INPUT_GRASP: True
-  INPUT_DEPTH: False
+  INPUT_DEPTH: True
   INPUT_POSE: True
   INPUT_TRAJECTORY: False # trajectory map
   INPUT_VECTORMAP: False # vector map
