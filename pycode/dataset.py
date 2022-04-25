@@ -1192,7 +1192,7 @@ class RLBench_dataset(Dataset_Template):
         pos_image = self.make_pos_image(image_size,uv)
         if self.ToTensor != None:
             pos_image = self.ToTensor(pos_image)
-        uv = torch.tensor(uv)[:,:2]
+        uv = torch.tensor(np.array(uv))[:,:2]
         uv_mask = torch.where(torch.isnan(uv), 0., 1.)
         uv = torch.where(torch.isnan(uv), 0., uv)
         return pos_image, uv, uv_mask
@@ -1708,7 +1708,7 @@ class RLBench_dataset3(RLBench_dataset):
         # get vector image
         if self.input_vector_map:
             data_dict = self.data_list[start_index]
-            input_vector_path = os.path.join(data_dict['image_dir'][:-5], "additional_info", "vector_map","vector_data_{}.npy".format(data_dict['filename']))
+            input_vector_path = os.path.join(data_dict['image_dir'][:-5], "additional_info", "vector_map","vector_data_v2_{}.npy".format(data_dict['filename']))
             vector_data = np.load(input_vector_path)
             input_vector = torch.tensor(vector_data, dtype=torch.float32)
 
@@ -2459,7 +2459,7 @@ class RLBench_dataset3_MBBC(RLBench_dataset3_VP):
 
 class RLBench_dataset_skip(RLBench_dataset):
 
-    def __init__(self,cfg,save_dataset=False,mode='train'):
+    def __init__(self,cfg,save_dataset=False,mode='train',num_sequence=0):
         """
         output: image_t,posture_t,image_t+1,posture_t+1
         
@@ -2473,11 +2473,14 @@ class RLBench_dataset_skip(RLBench_dataset):
             data_root_dir = os.path.join(cfg.DATASET.RLBENCH.PATH3, mode)
         elif cfg.DATASET.NAME == "RLBench4":
             data_root_dir = os.path.join(cfg.DATASET.RLBENCH.PATH4, mode)
+        elif cfg.DATASET.NAME == "RLBench4-sawyer":
+            data_root_dir = os.path.join(cfg.DATASET.RLBENCH.PATH4_SAWYER, mode)
 
         self.data_list = None
         self.index_list = None
         self.sequence_index_list = None
         self.next_index_list = None
+        self.len_index_list = None
         self.size = None
         self.numpose = None # the number of key point
 
@@ -2504,6 +2507,10 @@ class RLBench_dataset_skip(RLBench_dataset):
         self.pred_len = cfg.PRED_LEN
         self.past_len = cfg.PAST_LEN
         self.skip_len = cfg.SKIP_LEN
+        if num_sequence == 0:
+            self.num_sequence = cfg.DATASET.RLBENCH.SEQ_LEN
+        else:
+            self.num_sequence = num_sequence
         print('length of future is {} frame'.format(self.pred_len))
         
         self.seed = 0
@@ -2522,19 +2529,19 @@ class RLBench_dataset_skip(RLBench_dataset):
             print('save json data')
             os.makedirs(os.path.join(data_root_dir, 'json'), exist_ok=True)
             with open(json_path, 'w') as f:
-                json.dump([self.data_list, self.index_list, self.next_index_list],f,indent=4)
+                json.dump([self.data_list, self.index_list, self.next_index_list, self.len_index_list],f,indent=4)
             print('done')
         else:
             # load json data
             print('load json data')
             with open(json_path) as f:
-                [self.data_list, self.index_list, self.next_index_list] = json.load(f)
+                [self.data_list, self.index_list, self.next_index_list, self.len_index_list] = json.load(f)
 
         self.get_image_size()
         self.ToTensor = transforms.ToTensor()
 
     def __len__(self):
-        return len(self.index_list)
+        return self.len_index_list[self.num_sequence - 1]
 
     def __getitem__(self, data_index):
         # get image
@@ -2744,6 +2751,7 @@ class RLBench_dataset_skip(RLBench_dataset):
         self.index_list = []
         self.next_index_list = []
         self.sequence_index_list = []
+        self.len_index_list = []
         index = 0
         
         task_list = os.listdir(folder_path) # get task list
@@ -2801,6 +2809,9 @@ class RLBench_dataset_skip(RLBench_dataset):
 
                     if index < end_index:
                         self.index_list.append(index)
+
+                    if index == end_index:
+                        self.len_index_list.append(len(self.index_list))
                     
                     # print("index: {}, next index: {}".format(index, next_index))
                     index += 1
@@ -2829,7 +2840,7 @@ class RLBench_dataset_skip(RLBench_dataset):
 
 class RLBench_dataset_VP_skip(RLBench_dataset3):
 
-    def __init__(self,cfg,save_dataset=False,mode='train',random_len=0):
+    def __init__(self,cfg,save_dataset=False,mode='train',random_len=0,num_sequence=0):
         """
         output: image_t,posture_t,image_t+1,posture_t+1
         
@@ -2843,11 +2854,15 @@ class RLBench_dataset_VP_skip(RLBench_dataset3):
             data_root_dir = os.path.join(cfg.DATASET.RLBENCH.PATH3, mode)
         elif cfg.DATASET.NAME == "RLBench4":
             data_root_dir = os.path.join(cfg.DATASET.RLBENCH.PATH4, mode)
+        elif cfg.DATASET.NAME == "RLBench4-sawyer":
+            data_root_dir = os.path.join(cfg.DATASET.RLBENCH.PATH4_SAWYER, mode)
 
         self.data_list = None
         self.index_list = None
         self.sequence_index_list = None
         self.next_index_list = None
+        self.len_index_list = None
+
         self.size = None
         self.numpose = None # the number of key point
         
@@ -2865,8 +2880,14 @@ class RLBench_dataset_VP_skip(RLBench_dataset3):
         self.root_dir = data_root_dir
         
         self.use_front_depth = cfg.VIDEO_HOUR.INPUT_DEPTH
+        self.past_len = cfg.PAST_LEN
         self.pred_len = 1
         self.skip_len = cfg.SKIP_LEN
+
+        if num_sequence == 0:
+            self.num_sequence = cfg.DATASET.RLBENCH.SEQ_LEN
+        else:
+            self.num_sequence = num_sequence
 
         print('length of future is {} frame'.format(self.pred_len))
         
@@ -2895,13 +2916,13 @@ class RLBench_dataset_VP_skip(RLBench_dataset3):
             print('save json data')
             os.makedirs(os.path.join(data_root_dir, 'json'), exist_ok=True)
             with open(json_path, 'w') as f:
-                json.dump([self.data_list, self.index_list, self.next_index_list],f,indent=4)
+                json.dump([self.data_list, self.index_list, self.next_index_list, self.len_index_list],f,indent=4)
             print('done')
         else:
             # load json data
             print('load json data')
             with open(json_path) as f:
-                [self.data_list, self.index_list, self.next_index_list] = json.load(f)
+                [self.data_list, self.index_list, self.next_index_list, self.len_index_list] = json.load(f)
 
         self.get_image_size()
         self.ToTensor = transforms.ToTensor()
@@ -2916,17 +2937,18 @@ class RLBench_dataset_VP_skip(RLBench_dataset3):
         end_index = data_dict['end_index']
         
         input_dict = {}
+        index_list = []
 
         if self.random_len != 0:
             random_len = self.skip_len + random.randint(-self.random_len, self.random_len)
         else:
             random_len = self.skip_len
         
-        past_index = index - random_len
-        if past_index < start_index:
-            past_index = start_index
-        
-        index_list = [past_index, index]
+        for i in range(self.past_len + 1):
+            if index - (random_len * i) >= start_index:
+                index_list.insert(0, index - (random_len * i))
+            else:
+                index_list.insert(0, start_index)
 
         future_index = index + random_len
         if future_index > end_index:
@@ -2943,6 +2965,7 @@ class RLBench_dataset_VP_skip(RLBench_dataset3):
 
         for i,index in enumerate(index_list):
             if (index < start_index) or (index > end_index):
+                print(f"start:{start_index} past{end_index} current{index}")
                 raise ValueError('hoge')
                 
             data_dict = self.data_list[index]
@@ -3036,6 +3059,7 @@ class RLBench_dataset_VP_skip(RLBench_dataset3):
         # for data preparation
         self.data_list = []
         self.index_list = []
+        self.len_index_list = []
         index = 0
         
         task_list = os.listdir(folder_path) # get task list
@@ -3062,6 +3086,7 @@ class RLBench_dataset_VP_skip(RLBench_dataset3):
                 pickle_folder_path = os.path.join(task_path, sequence_index, 'base_data')
                 pickle_list = os.listdir(pickle_folder_path)
                 pickle_list.sort()
+                end_index = start_index + len(pickle_list) - 1
                 for pickle_name in pickle_list:
                     head, ext = os.path.splitext(pickle_name)
                     data_dict = {}
@@ -3069,10 +3094,13 @@ class RLBench_dataset_VP_skip(RLBench_dataset3):
                     data_dict['filename'] = os.path.join(head)
                     data_dict['pickle_path'] = os.path.join(pickle_folder_path, pickle_name)
                     data_dict['start_index'] = start_index
-                    data_dict['end_index'] = start_index + len(pickle_list) - 1
+                    data_dict['end_index'] = end_index
                     
                     self.data_list.append(data_dict)
-                    if index <= start_index + (len(pickle_list) - 1) - 2:
+                    if index < end_index - 1:
                         self.index_list.append(index)
-                        
+                    
+                    if index == end_index:
+                        self.len_index_list.append(len(self.index_list))
+
                     index += 1

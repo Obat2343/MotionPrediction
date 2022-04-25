@@ -17,7 +17,7 @@ from pycode.dataset import RLBench_dataset, Softargmax_dataset, imageaug_full_tr
 from pycode.config import _C as cfg
 from pycode.model.Hourglass import stacked_hourglass_model
 from pycode.loss.mp_loss import Train_Loss_sequence_hourglass
-from pycode.misc import save_outputs, build_model_MP, build_dataset_MP, build_optimizer, str2bool, save_args, save_checkpoint, load_checkpoint
+from pycode.misc import save_outputs, build_model_MP, build_dataset_MP, build_dataset_VP, build_optimizer, str2bool, save_args, save_checkpoint, load_checkpoint
 
 # parser
 parser = argparse.ArgumentParser(description='parser for image generator')
@@ -43,8 +43,8 @@ if cuda:
     torch.cuda.manual_seed(cfg.BASIC.SEED)
 
 # set dataset
-train_dataset = build_dataset_MP(cfg, save_dataset=False, mode='train')
-val_dataset = build_dataset_MP(cfg, save_dataset=False, mode='val')
+train_dataset = build_dataset_VP(cfg, save_dataset=False, mode='train')
+val_dataset = build_dataset_VP(cfg, save_dataset=False, mode='val')
 
 # set dataloader
 train_dataloader = DataLoader(train_dataset, batch_size=cfg.BASIC.BATCH_SIZE, shuffle=True, num_workers=cfg.BASIC.WORKERS)
@@ -61,10 +61,8 @@ max_iter = cfg.BASIC.MAX_EPOCH * len(train_dataloader)
 for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
     for iteration, inputs in enumerate(train_dataloader, 1):
         total_iteration = len(train_dataloader) * epoch + iteration
-        print(iteration)
-        print(inputs['input_rotation'].shape)
-        print('===> Iter: {:06d}/{:06d}, Cost: {:.2f}s, Eta: {}'.format(total_iteration, 
-                max_iter, time.time() - tic, str(datetime.timedelta(seconds=eta_seconds))))
+        print('===> Iter: {:06d}/{:06d}, Eta: {}'.format(total_iteration, 
+                max_iter, time.time() - tic))
         # print(inputs)
         # skip until start iter
         if iteration < start_iter:

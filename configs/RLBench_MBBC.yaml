@@ -1,16 +1,16 @@
-MP_MODEL_NAME: 'sequence_hourglass' # hourglass, sequence_hourglass
+MP_MODEL_NAME: 'hourglass' # hourglass, sequence_hourglass
 PRED_LEN: 1
-PAST_LEN: 5
+PAST_LEN: 0
+SKIP_LEN: 1
 DATASET:
   NAME: 'RLBench3' # HMD, RLBench
   RLBENCH:
-    TASK_LIST: ['PickUpCup'] # PickUpCup PutKnifeOnChoppingBoard PutRubbishInBin StackWine TakePlateOffColoredDishRack
+    TASK_LIST: ['PickUpCup'] # PickUpCup PutKnifeOnChoppingBoard PutRubbishInBin StackWine TakePlateOffColoredDishRack, CloseBox
     # PATH4: '/home-local/tendon/dataset/RLBench4'
-    RANDOM_LEN: 10
 BASIC:
   NUM_GPU: 1
-  BATCH_SIZE: 1
-  WORKERS: 4
+  BATCH_SIZE: 4 # 60
+  WORKERS: 8
 LOAD_MODEL: 'all'
 HOURGLASS:
   PRED_RGB: False
@@ -20,13 +20,11 @@ HOURGLASS:
   INPUT_PAST: True
   INPUT_ROTATION: True
   INPUT_GRASP: True
-  INPUT_DEPTH: True
+  INPUT_DEPTH: False
   INPUT_POSE: True
 VIDEO_HOUR:
   MODE: 'pc'
-  INPUT_DEPTH: True
+  INPUT_DEPTH: False
   INPUT_Z: True
   INPUT_ROTATION: True
   INPUT_GRASP: True
-  WO_RESIDUAL: []
-  ONLY_RGB_AUXILIARY: False

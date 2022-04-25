@@ -1,0 +1,31 @@
+MP_MODEL_NAME: 'sequence_hourglass' # hourglass, sequence_hourglass
+PRED_LEN: 1
+PAST_LEN: 5
+SKIP_LEN: 3
+DATASET:
+  NAME: 'RLBench4' # HMD, RLBench
+  RLBENCH:
+    TASK_LIST: ['PutKnifeOnChoppingBoard'] # PickUpCup PutKnifeOnChoppingBoard PutRubbishInBin StackWine TakePlateOffColoredDishRack,ReachTarget, PushButton, ScoopWithSpatula
+    PATH4: '/home-local/tendon/dataset/RLBench4'
+    RANDOM_LEN: 1
+BASIC:
+  NUM_GPU: 1
+  BATCH_SIZE: 2 # 60
+  WORKERS: 8
+LOAD_MODEL: 'all'
+HOURGLASS:
+  PRED_RGB: False
+  PRED_ROTATION: True
+  PRED_GRASP: True
+  PRED_TRAJECTORY: True
+  INPUT_PAST: True
+  INPUT_ROTATION: True
+  INPUT_GRASP: True
+  INPUT_DEPTH: False
+  INPUT_POSE: True
+VIDEO_HOUR:
+  MODE: 'pc'
+  INPUT_DEPTH: False
+  INPUT_Z: True
+  INPUT_ROTATION: True
+  INPUT_GRASP: True

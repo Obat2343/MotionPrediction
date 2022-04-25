@@ -1,31 +1,5 @@
-MP_MODEL_NAME: 'sequence_hourglass' # hourglass, sequence_hourglass
-DATASET:
-  NAME: 'RLBench3' # HMD, RLBench
-  RLBENCH:
-    TASK_LIST: ['PickUpCup'] # PickUpCup PutKnifeOnChoppingBoard PutRubbishInBin StackWine TakePlateOffColoredDishRack
 BASIC:
   NUM_GPU: 1
   BATCH_SIZE: 1
 LOAD_MODEL: 'all'
-HOURGLASS:
-  NUM_BLOCK: 2
-  NUM_DOWNSCALE: 4
-  INTERMEDIATE_LOSS: True
-  PRED_RGB: False
-  PRED_ROTATION: True
-  PRED_GRASP: True
-  PRED_TRAJECTORY: False
-  INPUT_PAST: True
-  INPUT_ROTATION: True
-  INPUT_GRASP: True
-  INPUT_DEPTH: True
-VIDEO_HOUR:
-  MODE: 'pc'
-  INPUT_DEPTH: True
-  INPUT_Z: True
-  INPUT_ROTATION: True
-  INPUT_GRASP: True
-  WO_RESIDUAL: []
-  ONLY_RGB_AUXILIARY: False
-SEQUENCE_HOUR:
-  MODE: 2
+PRED_LEN: 1

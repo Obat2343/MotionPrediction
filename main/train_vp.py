@@ -23,7 +23,7 @@ from pycode.misc import build_dataset_VP, build_optimizer, str2bool, save_args, 
 parser = argparse.ArgumentParser(description='parser for image generator')
 parser.add_argument('--config_file', type=str, default='', metavar='FILE', help='path to config file')
 parser.add_argument('--log_step', type=int, default=100, help='')
-parser.add_argument('--save_step', type=int, default=5000, help='')
+parser.add_argument('--save_step', type=int, default=10000, help='')
 parser.add_argument('--eval_step', type=int, default=5000, help='')
 parser.add_argument('--output_dirname', type=str, default='', help='')
 parser.add_argument('--checkpoint_path', type=str, default=None, help='')
@@ -201,7 +201,7 @@ def make_videomodel_input(inputs, device, sequence_id=0):
 tic = time.time()
 end = time.time()
 trained_time = 0
-max_iter = cfg.BASIC.MAX_EPOCH * len(train_dataloader)
+max_iter = cfg.BASIC.MAX_ITER
 for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
     for iteration, inputs in enumerate(train_dataloader, 1):
         total_iteration = len(train_dataloader) * epoch + iteration
@@ -249,24 +249,6 @@ for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
             train_loss_vp.reset_log()
             train_loss_d.reset_log()
             tic = time.time()
-            
-        # validation
-        if total_iteration % args.eval_step == 0:
-            print('validation start')
-            for iteration, inputs in enumerate(val_dataloader, 1):
-                with torch.no_grad():
-                    outputs = model(make_videomodel_input(inputs,device))
-                    _ = val_loss_vp(inputs, outputs, mode='val')
-                if iteration >= 1000:
-                    break
-            
-            val_log = val_loss_vp.get_log()
-            if args.log2wandb:
-                wandb.log(val_log,step=total_iteration)
-            
-            print('===> Iter: {:06d}/{:06d}, VAL Loss: {:.6f}'.format(total_iteration, max_iter, val_log['val/weight_loss']))
-            print('')
-            val_loss_vp.reset_log()
         
         # save checkpoint
         if total_iteration % args.save_step == 0:
@@ -279,7 +261,7 @@ for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
             
             # save output image
             for i, inputs in enumerate(train_dataloader, 1):
-                with torch.no_grad():
+                with torch.inference_mode():
                     outputs = model(make_videomodel_input(inputs,device))
                     save_outputs_vp(inputs, outputs, checkpoint_dir, i, cfg, mode='train')
                     
@@ -287,13 +269,34 @@ for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
                     break
             
             for i, inputs in enumerate(val_dataloader, 1):
-                with torch.no_grad():
+                with torch.inference_mode():
                     outputs = model(make_videomodel_input(inputs,device))
-                    save_outputs_vp(inputs, outputs, checkpoint_dir, i, cfg, mode='train')
+                    save_outputs_vp(inputs, outputs, checkpoint_dir, i, cfg, mode='val')
                     
                 if i >= 5:
                     break 
-                
+        
+        # validation
+        if total_iteration % args.eval_step == 0:
+            print('validation start')
+            for iteration, inputs in enumerate(val_dataloader, 1):
+                with torch.inference_mode():
+                    outputs = model(make_videomodel_input(inputs,device))
+                    _ = val_loss_vp(inputs, outputs, mode='val')
+                if iteration >= 1000:
+                    break
+            
+            val_log = val_loss_vp.get_log()
+            if args.log2wandb:
+                wandb.log(val_log,step=total_iteration)
+            
+            print('===> Iter: {:06d}/{:06d}, VAL Loss: {:.6f}'.format(total_iteration, max_iter, val_log['val/weight_loss']))
+            print('')
+            val_loss_vp.reset_log()
+
+        if total_iteration == cfg.BASIC.MAX_ITER:
+            sys.exit()
+
     train_dataset.update_seed()
     print("seed: {}".format(train_dataset.seed))
     start_iter = 1

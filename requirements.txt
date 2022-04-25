@@ -8,11 +8,12 @@ chardet==4.0.0
 click==7.1.2
 configparser==5.0.2
 cycler==0.10.0
-dataclasses==0.8
+dataclasses
 decorator==4.4.2
 defusedxml==0.6.0
 docker-pycreds==0.4.0
 entrypoints==0.3
+fastdtw==0.3.4
 gitdb==4.0.6
 GitPython==3.1.14
 html-testRunner==1.2.1
@@ -84,9 +85,7 @@ tensorboardX==2.0
 terminado==0.8.3
 testpath==0.4.4
 tifffile==2020.9.3
-torch==1.8.1
 torch-optimizer==0.1.0
-torchvision==0.9.1
 tornado==6.0.4
 tqdm==4.43.0
 traitlets==4.3.3

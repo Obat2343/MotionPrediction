@@ -19,8 +19,9 @@ sys.path.append('../')
 from pycode.dataset import RLBench_dataset, Softargmax_dataset, imageaug_full_transform, train_val_split, pose_aug
 from pycode.config import _C as cfg
 from pycode.model.Hourglass import stacked_hourglass_model
+from pycode.model.VideoPrediction import VIDEO_HOURGLASS
 from pycode.loss.mp_loss import Train_Loss_sequence_hourglass
-from pycode.misc import save_outputs, build_model_MP, build_dataset_MP, build_optimizer, str2bool, save_args, save_checkpoint, load_checkpoint, Timer, Time_dict
+from pycode.misc import save_outputs, build_model_MP, build_dataset_MP, build_optimizer, str2bool, save_args, save_checkpoint, load_checkpoint, Timer, Time_dict, make_differentiable_pos_image, make_pos_image
 
 # parser
 parser = argparse.ArgumentParser(description='parser for image generator')
@@ -31,7 +32,7 @@ parser.add_argument('--eval_step', type=int, default=5000, help='')
 parser.add_argument('--output_dirname', type=str, default='', help='')
 parser.add_argument('--checkpoint_path', type=str, default=None, help='')
 parser.add_argument('--vp_path', type=str, default='')
-parser.add_argument('--hourglass_path', type=str, default='')
+parser.add_argument('--mp_path', type=str, default='')
 parser.add_argument('--log2wandb', type=str2bool, default=True)
 parser.add_argument('--wandb_group', type=str, default='') # e.g. compare_input
 parser.add_argument('--save_dataset', type=str2bool, default=False)
@@ -113,28 +114,45 @@ train_dataloader = DataLoader(train_dataset, batch_size=cfg.BASIC.BATCH_SIZE, sh
 val_dataloader = DataLoader(val_dataset, batch_size=cfg.BASIC.BATCH_SIZE, shuffle=True, num_workers=cfg.BASIC.WORKERS)
 
 # set model
-model = build_model_MP(cfg, args)
+mp_model = stacked_hourglass_model(cfg, output_dim=1)
+vp_model = VIDEO_HOURGLASS(cfg) 
 
 # set optimizer
-optimizer = build_optimizer(cfg, model, 'mp')
-scheduler = StepLR(optimizer, step_size=cfg.SCHEDULER.STEPLR.STEP_SIZE, gamma=cfg.SCHEDULER.STEPLR.GAMMA)
+mp_optimizer = build_optimizer(cfg, mp_model, 'mp')
+mp_scheduler = StepLR(mp_optimizer, step_size=cfg.SCHEDULER.STEPLR.STEP_SIZE, gamma=cfg.SCHEDULER.STEPLR.GAMMA)
 
-model = torch.nn.DataParallel(model, device_ids = list(range(cfg.BASIC.NUM_GPU)))
-model = model.to(device)
+vp_optimizer = build_optimizer(cfg, vp_model, 'vp')
+vp_scheduler = StepLR(vp_optimizer, step_size=cfg.SCHEDULER.STEPLR.STEP_SIZE, gamma=cfg.SCHEDULER.STEPLR.GAMMA)
+
+mp_model = torch.nn.DataParallel(mp_model, device_ids = list(range(cfg.BASIC.NUM_GPU)))
+mp_model = mp_model.to(device)
+
+vp_model = torch.nn.DataParallel(vp_model, device_ids = list(range(cfg.BASIC.NUM_GPU)))
+vp_model = vp_model.to(device)
 
 # set loss
 train_loss = Train_Loss_sequence_hourglass(cfg, device)
+MSE = torch.nn.MSELoss()
 val_loss = Train_Loss_sequence_hourglass(cfg, device)
+
+mp_checkpoint_path = os.path.join(args.mp_path, 'mp.pth')
+vp_checkpoint_path = os.path.join(args.vp_path, 'vp.pth')
+
+mp_model, _, _, _, _ = load_checkpoint(mp_model, mp_checkpoint_path)
+vp_model, _, _, _, _ = load_checkpoint(vp_model, vp_checkpoint_path)
 
 # load checkpoint
 if args.checkpoint_path != None:
-    checkpoint_path = os.path.join(args.checkpoint_path, 'mp.pth')
-    
+    mp_checkpoint_path = os.path.join(args.checkpoint_path, 'mp.pth')
+    vp_checkpoint_path = os.path.join(args.checkpoint_path, 'vp.pth')
+
     if cfg.LOAD_MODEL == 'all':
-        model, optimizer, start_epoch, start_iter, scheduler = load_checkpoint(model, checkpoint_path, optimizer=optimizer, scheduler=scheduler)
+        mp_model, mp_optimizer, start_epoch, start_iter, mp_scheduler = load_checkpoint(mp_model, mp_checkpoint_path, optimizer=mp_optimizer, scheduler=mp_scheduler)
+        vp_model, vp_optimizer, start_epoch, start_iter, vp_scheduler = load_checkpoint(vp_model, vp_checkpoint_path, optimizer=vp_optimizer, scheduler=vp_scheduler)
     elif cfg.LOAD_MODEL == 'model_only':
         # dose tukawan kara nokosu. keshitemoiiyo
-        model, _, _, _, _ = load_checkpoint(model, checkpoint_path)
+        mp_model, _, _, _, _ = load_checkpoint(mp_model, mp_checkpoint_path)
+        vp_model, _, _, _, _ = load_checkpoint(vp_model, vp_checkpoint_path)
         start_epoch, start_iter = 0, 1
 else:
     start_epoch, start_iter = 0, 1
@@ -149,6 +167,48 @@ time_dict = Time_dict()
 load_start = time.time()
 # torch.autograd.set_detect_anomaly(True)
 
+def make_videomodel_input(inputs, outputs, action='pred'):
+    '''
+    output:
+    dictionary{
+    rgb => torch.Tensor shape=(B,S,C,H,W),
+    pose => torch.Tensor shape=(B,S,C,H,W)}
+
+    mode1: input output heatmap
+    mode2: input dataset heatmap
+    '''
+    data_dict = {}
+    device = outputs['pose'].device
+
+    if action == 'pred':
+        t1_heatmap = outputs['heatmap'][:,-1:,-1]
+        t1_pose = outputs['pose'][:,-1:,-1, 0]
+        t1_rotation = outputs['rotation'][:,-1:,-1]
+        t1_grasp = outputs['grasp'][:,-1:,-1, 0]
+    elif action == 'gt':
+        t1_heatmap = inputs['heatmap'][:,2:3].to(device)
+        t1_pose = inputs['pose_xyz'][:,2:3].to(device)
+        t1_rotation = inputs['rotation_matrix'][:,2:3].to(device)
+        t1_grasp = inputs['grasp'][:,2:3].to(device)
+    else:
+        ValueError("invalid action")
+
+    data_dict['rgb'] = inputs['rgb'][:,:2].to(device)
+    
+    pose_heatmap = inputs['heatmap'][:,:2].to(device)
+    data_dict['heatmap'] = torch.cat((pose_heatmap, t1_heatmap), 1)
+    
+    pose_xyz = inputs['pose_xyz'][:,:2].to(device)
+    data_dict['pose_xyz'] = torch.cat((pose_xyz, t1_pose), 1)
+    
+    rotation_matrix = inputs['rotation_matrix'][:,:2].to(device)
+    data_dict['rotation_matrix'] = torch.cat((rotation_matrix, t1_rotation), 1)
+    
+    grasp = inputs['grasp'][:,:2].to(device)
+    data_dict['grasp'] = torch.cat((grasp, t1_grasp), 1)
+            
+    return data_dict
+
 for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
     for iteration, inputs in enumerate(train_dataloader, 1):
         time_dict.load_data += time.time() - load_start
@@ -159,20 +219,34 @@ for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
             continue
             
         # optimize generator
-        optimizer.zero_grad()
+        mp_optimizer.zero_grad()
+        vp_optimizer.zero_grad()
         
         with Timer() as t:
-            outputs = model(inputs)
+            outputs = mp_model(inputs)
+            # pos_image = make_differentiable_pos_image((256,256), outputs['uv'][:,0,-1].to('cpu'), inputs['uv_mask'][:,1])
+            # pos_image = torch.unsqueeze(pos_image, 1)
+            video_inputs = make_videomodel_input(inputs, outputs)
+            video_outputs = vp_model(video_inputs)
+            pred_image1 = video_outputs['rgb']
+
+            video_inputs = make_videomodel_input(inputs, outputs, action='gt')
+            video_outputs = vp_model(video_inputs)
+            pred_image2 = video_outputs['rgb']
         time_dict.forward += t.secs
 
         with Timer() as t:
             loss = train_loss(inputs, outputs)
+            loss += MSE(inputs['rgb'][:,2].to(device), pred_image1)
+            loss += MSE(inputs['rgb'][:,2].to(device), pred_image2)
         time_dict.loss += t.secs
 
         with Timer() as t:
             loss.backward()
-            optimizer.step()
-            scheduler.step()
+            mp_optimizer.step()
+            mp_scheduler.step()
+            vp_optimizer.step()
+            vp_scheduler.step()
         time_dict.backward += t.secs
         
         # time setting
@@ -189,7 +263,7 @@ for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
             
             # print(threading.active_count())
             print('===> Iter: {:06d}/{:06d}, LR: {:.5f}, Cost: {:.2f}s, Load: {:.2f}, Forward: {:.2f}, Backward: {:.2f}, Loss: {:.6f}'.format(total_iteration, 
-                max_iter, optimizer.param_groups[0]['lr'], time.time() - tic, 
+                max_iter, mp_optimizer.param_groups[0]['lr'], time.time() - tic, 
                 time_dict.load_data, time_dict.forward, time_dict.backward, log['train/weight_loss']))
             
             train_loss.reset_log()
@@ -201,12 +275,15 @@ for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
             checkpoint_dir = os.path.join(model_path,'checkpoint_iter{}'.format(total_iteration))
             os.makedirs(checkpoint_dir, exist_ok=True)
             cp_path = os.path.join(checkpoint_dir, 'mp.pth')
-            save_checkpoint(model, optimizer, epoch, iteration, cp_path, scheduler)
+            save_checkpoint(mp_model, mp_optimizer, epoch, iteration, cp_path, mp_scheduler)
+
+            cp_path = os.path.join(checkpoint_dir, 'vp.pth')
+            save_checkpoint(vp_model, vp_optimizer, epoch, iteration, cp_path, vp_scheduler)
             
             # save output image
             for i, inputs in enumerate(train_dataloader, 1):
                 with torch.inference_mode():
-                    outputs = model(inputs)
+                    outputs = mp_model(inputs)
                     save_outputs(inputs, outputs, checkpoint_dir, i, cfg, mode='train')
                     
                 if i >= 5:
@@ -214,7 +291,7 @@ for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
             
             for i, inputs in enumerate(val_dataloader, 1):
                 with torch.inference_mode():
-                    outputs = model(inputs)
+                    outputs = mp_model(inputs)
                     save_outputs(inputs, outputs, checkpoint_dir, i, cfg, mode='val')
                     
                 if i >= 5:
@@ -225,7 +302,7 @@ for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
             print('validation start')
             for iteration, inputs in enumerate(val_dataloader, 1):
                 with torch.inference_mode():
-                    outputs = model(inputs)
+                    outputs = mp_model(inputs)
                     _ = val_loss(inputs, outputs, mode='val')
                 if iteration >= 1000:
                     break

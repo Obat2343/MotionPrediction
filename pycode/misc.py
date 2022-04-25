@@ -15,6 +15,7 @@ import time
 from fastdtw import fastdtw # https://github.com/slaypni/fastdtw
 from scipy.spatial.distance import euclidean
 from scipy.spatial.transform import Rotation as R
+from einops import rearrange, reduce, repeat
 
 def build_dataset_MP(cfg, save_dataset=False, mode='train'):
     if cfg.DATASET.NAME == 'HMD':
@@ -27,11 +28,11 @@ def build_dataset_MP(cfg, save_dataset=False, mode='train'):
             dataset = RLBench_dataset(cfg, save_dataset=save_dataset, mode=mode)
         elif mode == 'val':
             dataset = RLBench_dataset(cfg, save_dataset=save_dataset, mode=mode)
-    elif (cfg.DATASET.NAME == 'RLBench3') or (cfg.DATASET.NAME == 'RLBench4'):
+    elif (cfg.DATASET.NAME == 'RLBench3') or (cfg.DATASET.NAME == 'RLBench4') or (cfg.DATASET.NAME == 'RLBench4-sawyer'):
         if mode == 'train':
             dataset = RLBench_dataset_skip(cfg, save_dataset=save_dataset, mode=mode)
         elif mode == 'val':
-            dataset = RLBench_dataset_skip(cfg, save_dataset=save_dataset, mode=mode)
+            dataset = RLBench_dataset_skip(cfg, save_dataset=save_dataset, mode=mode, num_sequence=100)
 
     return dataset
 
@@ -50,7 +51,7 @@ def build_dataset_VP(cfg, save_dataset=False, mode='train'):
             dataset = RLBench_dataset_VP(cfg, save_dataset=save_dataset, mode=mode)
         elif mode == 'test':
             dataset = RLBench_dataset_VP(cfg, save_dataset=save_dataset, mode='val', random_len=1)
-    elif (cfg.DATASET.NAME == 'RLBench3') or (cfg.DATASET.NAME == 'RLBench4'):
+    elif (cfg.DATASET.NAME == 'RLBench3') or (cfg.DATASET.NAME == 'RLBench4') or (cfg.DATASET.NAME == 'RLBench4-sawyer'):
         if mode == 'train':
             dataset = RLBench_dataset_VP_skip(cfg, save_dataset=save_dataset, mode=mode)
         elif mode == 'val':
@@ -452,6 +453,49 @@ def make_pos_image(size,uv_data,uv_mask,r=3):
             pos_image_batch = torch.cat((pos_image_batch, torch.unsqueeze(pos_image, 0)), 0)
     
     return pos_image_batch
+
+def make_differentiable_pos_image(size, uv_data, uv_mask):
+    B, C, _ = uv_data.shape
+    if C != 1:
+        raise ValueError("TODO")
+
+    W, H = size[0], size[1]
+    device = uv_data.device
+
+    probmap_list = []
+    for b in range(B):
+        m = torch.distributions.multivariate_normal.MultivariateNormal(uv_data[b, 0], torch.eye(2) * 2)
+        base_prob = torch.exp(m.log_prob(uv_data[b, 0]))
+        
+        xx_ones = torch.ones([1, 1, W], dtype=torch.int32)
+        yy_ones = torch.ones([1, 1, H], dtype=torch.int32)
+
+        xx_range = torch.arange(W, dtype=torch.int32)
+        yy_range = torch.arange(H, dtype=torch.int32)
+        xx_range = xx_range[None, :, None]
+        yy_range = yy_range[None, :, None]
+
+        xx_channel = torch.matmul(xx_range, xx_ones)
+        yy_channel = torch.matmul(yy_range, yy_ones)
+
+        # transpose y
+        xx_channel = xx_channel.permute(0, 2, 1)
+
+        xx_channel = xx_channel.repeat(1, 1, 1)
+        yy_channel = yy_channel.repeat(1, 1, 1)
+
+        xx_channel = xx_channel.to(device)
+        yy_channel = yy_channel.to(device)
+        coords_map = torch.cat([xx_channel, yy_channel], dim=0)
+        
+        flat_coords = rearrange(coords_map, "C H W -> (H W) C")
+        prob_map = torch.exp(m.log_prob(flat_coords)) / base_prob
+        prob_map = rearrange(prob_map, "(H W) -> H W", H=W, W=W)
+        prob_map = torch.unsqueeze(prob_map, 0)
+        probmap_list.append(prob_map)
+
+    prob_map = torch.stack(probmap_list, 0)
+    return prob_map
 
 def save_diff_heatmap_overlay(pred, gt):
     totensor = torchvision.transforms.ToTensor()

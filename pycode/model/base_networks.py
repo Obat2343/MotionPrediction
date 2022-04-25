@@ -16,7 +16,7 @@ class SELayer(torch.nn.Module):
         self.avg_pool = torch.nn.AdaptiveAvgPool2d(1)
         self.fc = torch.nn.Sequential(
             torch.nn.Linear(channel, channel // reduction, bias=False),
-            torch.nn.ReLU(inplace=True),
+            torch.nn.ReLU(inplace=False),
             torch.nn.Linear(channel // reduction, channel, bias=False),
             torch.nn.Sigmoid()
         )
@@ -49,11 +49,11 @@ class LinearBlock(torch.nn.Module):
 
         self.activation = activation
         if self.activation == 'relu':
-            self.act = torch.nn.ReLU(True)
+            self.act = torch.nn.ReLU(False)
         elif self.activation == 'prelu':
             self.act = torch.nn.PReLU()
         elif self.activation == 'lrelu':
-            self.act = torch.nn.LeakyReLU(0.2, True)
+            self.act = torch.nn.LeakyReLU(0.2, False)
         elif self.activation == 'tanh':
             self.act = torch.nn.Tanh()
         elif self.activation == 'sigmoid':
@@ -95,11 +95,11 @@ class ConvBlock(torch.nn.Module):
         
         self.activation = activation
         if self.activation == 'relu':
-            self.act = torch.nn.ReLU(False)
+            self.act = torch.nn.ReLU()
         elif self.activation == 'prelu':
             self.act = torch.nn.PReLU()
         elif self.activation == 'lrelu':
-            self.act = torch.nn.LeakyReLU(0.2, True)
+            self.act = torch.nn.LeakyReLU(0.2)
         elif self.activation == 'tanh':
             self.act = torch.nn.Tanh()
         elif self.activation == 'sigmoid':
@@ -146,7 +146,7 @@ class ConvBlock_Pre(torch.nn.Module):
         elif self.activation == 'prelu':
             self.act = torch.nn.PReLU()
         elif self.activation == 'lrelu':
-            self.act = torch.nn.LeakyReLU(0.2, True)
+            self.act = torch.nn.LeakyReLU(0.2, False)
         elif self.activation == 'tanh':
             self.act = torch.nn.Tanh()
         elif self.activation == 'sigmoid':
@@ -184,11 +184,11 @@ class DeconvBlock(torch.nn.Module):
 
         self.activation = activation
         if self.activation == 'relu':
-            self.act = torch.nn.ReLU(True)
+            self.act = torch.nn.ReLU(False)
         elif self.activation == 'prelu':
             self.act = torch.nn.PReLU()
         elif self.activation == 'lrelu':
-            self.act = torch.nn.LeakyReLU(0.2, True)
+            self.act = torch.nn.LeakyReLU(0.2, False)
         elif self.activation == 'tanh':
             self.act = torch.nn.Tanh()
         elif self.activation == 'sigmoid':
@@ -676,11 +676,11 @@ class ResidualBlock(torch.nn.Module):
 
     def forward(self, x):
         residual = self.skip_conv(x)
-        output = self.conv1(x)
-        output = self.conv2(output)
-        output = self.conv3(output)
-        output += residual
-        return output
+        output1 = self.conv1(x)
+        output2 = self.conv2(output1)
+        output3 = self.conv3(output2)
+        output4 = output3 + residual
+        return output4
 
 class hourglass_module(torch.nn.Module):
     """

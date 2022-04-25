@@ -213,7 +213,7 @@ class VIDEO_HOURGLASS(nn.Module):
         if pose_dim == 'none':
             if cfg.DATASET.NAME == 'HMD':
                 pose_dim = 21
-            elif (cfg.DATASET.NAME == 'RLBench') or (cfg.DATASET.NAME == 'RLBench2') or (cfg.DATASET.NAME == 'RLBench3'):
+            elif 'RLBench' in cfg.DATASET.NAME:
                 pose_dim = 1
             else:
                 raise ValueError("invalid pose dim")

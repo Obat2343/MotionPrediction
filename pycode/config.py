@@ -47,7 +47,9 @@ _C.DATASET.RLBENCH.PATH = os.path.abspath('../dataset/RLBench')
 _C.DATASET.RLBENCH.PATH2 = os.path.abspath('../dataset/RLBench2')
 _C.DATASET.RLBENCH.PATH3 = os.path.abspath('../dataset/RLBench3')
 _C.DATASET.RLBENCH.PATH4 = os.path.abspath('../dataset/RLBench4')
+_C.DATASET.RLBENCH.PATH4_SAWYER = os.path.abspath('../dataset/RLBench4-sawyer')
 _C.DATASET.RLBENCH.RANDOM_LEN = 3
+_C.DATASET.RLBENCH.SEQ_LEN = 1000
 
 """
 task list

@@ -5,6 +5,7 @@ from .base_networks import ConvBlock, SoftArgmax2D, SigmoidArgmax2D, hourglass_m
 from .tools import compute_rotation_matrix_from_ortho6d as compute_rm
 from .VideoPrediction import VIDEO_HOURGLASS
 from ..misc import make_pos_image
+
 class stacked_hourglass_model(torch.nn.Module):
     def __init__(self, cfg, input_dim=3, output_dim=1, pred_len='none', device='cuda'):
         super(stacked_hourglass_model, self).__init__()
@@ -495,7 +496,7 @@ class sequence_hourglass(torch.nn.Module):
         for sequence_id in range(S-2):
             model_inputs = self.make_hourglass_input(inputs, outputs_history_dict, sequence_id, mp_mode)
             outputs = self.hour_glass(model_inputs)
-            pos_image = make_pos_image((W,H), outputs['uv'][:,0,-1].to('cpu'),inputs['uv_mask'][:,sequence_id+2])
+            pos_image = make_pos_image((W,H), outputs['uv'][:,0,-1].to('cpu'), inputs['uv_mask'][:,sequence_id+2])
             pos_image = torch.unsqueeze(pos_image, 1)
             
             if sequence_id < S-3:

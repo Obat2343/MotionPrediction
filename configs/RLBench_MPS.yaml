@@ -1,22 +1,23 @@
-MP_MODEL_NAME: 'hourglass' # hourglass, sequence_hourglass
-PRED_LEN: 1
+MP_MODEL_NAME: 'sequence_hourglass' # hourglass, sequence_hourglass
+PRED_LEN: 8
 PAST_LEN: 1
 SKIP_LEN: 3
 OPTIM:
-  MPLR: 0.0001
+  MPLR: 0.00001
 SCHEDULER:
   STEPLR:
-    STEP_SIZE: 30000
+    STEP_SIZE: 15000
 DATASET:
-  NAME: 'RLBench4-sawyer' # HMD, RLBench, RLBench4-sawyer
+  NAME: 'RLBench4-sawyer' # HMD, RLBench4
   RLBENCH:
-    TASK_LIST: ['CloseBox'] # PickUpCup, PutKnifeOnChoppingBoard, PutRubbishInBin, StackWine, TakePlateOffColoredDishRack, PushButton, ReachTarget, ScoopWithSpatula, PutUmbrellaInUmbrellaStand, CloseBox
+    TASK_LIST: ['ReachTarget'] # PickUpCup PutKnifeOnChoppingBoard PutRubbishInBin StackWine TakePlateOffColoredDishRack, ReachTarget, PushButton, CloseBox, PutUmbrellaInUmbrellaStand
+    PATH4: '/home-local/tendon/dataset/RLBench4'
     PATH4_SAWYER: '/home-local/tendon/dataset/RLBench4-sawyer'
 BASIC:
   NUM_GPU: 1
-  BATCH_SIZE: 4
-  WORKERS: 4
-  MAX_ITER: 150000
+  BATCH_SIZE: 1
+  WORKERS: 16
+  MAX_ITER: 70000
 LOAD_MODEL: 'all'
 HOURGLASS:
   NUM_BLOCK: 1
@@ -37,6 +38,16 @@ HOURGLASS:
   INPUT_ROTATION_MAP: False # rotation map
   INPUT_GRASPMAP: False # grasp map
   INPUT_HISTORY: False # motion history image
+VIDEO_HOUR:
+  MODE: 'pcf'
+  INPUT_DEPTH: False
+  INPUT_Z: True
+  INPUT_ROTATION: True
+  INPUT_GRASP: True
+  WO_RESIDUAL: []
+  ONLY_RGB_AUXILIARY: False
+SEQUENCE_HOUR:
+  MODE: 2
 LOSS:
   POSE:
     WEIGHT: 100.0
