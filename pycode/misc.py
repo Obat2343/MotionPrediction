@@ -10,7 +10,7 @@ import torch_optimizer as new_optim
 from collections import OrderedDict
 from torchvision import datasets, models, transforms
 from PIL import Image, ImageDraw, ImageOps
-from .dataset import Softargmax_dataset, Softargmax_dataset_VP, RLBench_dataset, RLBench_dataset_VP, RLBench_dataset3, RLBench_dataset3_VP, RLBench_dataset_skip, RLBench_dataset_VP_skip
+from .dataset import Softargmax_dataset, Softargmax_dataset_VP, RLBench_dataset, RLBench_dataset_VP, RLBench_dataset_skip, RLBench_dataset_VP_skip, RLBench_dataset_grasp, RLBench_dataset_VP_grasp
 import time
 from fastdtw import fastdtw # https://github.com/slaypni/fastdtw
 from scipy.spatial.distance import euclidean
@@ -29,7 +29,11 @@ def build_dataset_MP(cfg, save_dataset=False, mode='train'):
         elif mode == 'val':
             dataset = RLBench_dataset(cfg, save_dataset=save_dataset, mode=mode)
     elif (cfg.DATASET.NAME == 'RLBench3') or (cfg.DATASET.NAME == 'RLBench4') or (cfg.DATASET.NAME == 'RLBench4-sawyer'):
-        if mode == 'train':
+        if (cfg.SKIP_LEN == 0) and (mode == "train"):
+            dataset = RLBench_dataset_grasp(cfg, save_dataset=save_dataset, mode=mode)
+        elif (cfg.SKIP_LEN == 0) and (mode == "val"):
+            dataset = RLBench_dataset_grasp(cfg, save_dataset=save_dataset, mode=mode, num_sequence=100)
+        elif mode == 'train':
             dataset = RLBench_dataset_skip(cfg, save_dataset=save_dataset, mode=mode)
         elif mode == 'val':
             dataset = RLBench_dataset_skip(cfg, save_dataset=save_dataset, mode=mode, num_sequence=100)
@@ -52,7 +56,11 @@ def build_dataset_VP(cfg, save_dataset=False, mode='train'):
         elif mode == 'test':
             dataset = RLBench_dataset_VP(cfg, save_dataset=save_dataset, mode='val', random_len=1)
     elif (cfg.DATASET.NAME == 'RLBench3') or (cfg.DATASET.NAME == 'RLBench4') or (cfg.DATASET.NAME == 'RLBench4-sawyer'):
-        if mode == 'train':
+        if (cfg.SKIP_LEN == 0) and (mode == "train"):
+            dataset = RLBench_dataset_VP_grasp(cfg, save_dataset=save_dataset, mode=mode)
+        elif (cfg.SKIP_LEN == 0) and (mode == "val"):
+            dataset = RLBench_dataset_VP_grasp(cfg, save_dataset=save_dataset, mode=mode)
+        elif mode == 'train':
             dataset = RLBench_dataset_VP_skip(cfg, save_dataset=save_dataset, mode=mode)
         elif mode == 'val':
             dataset = RLBench_dataset_VP_skip(cfg, save_dataset=save_dataset, mode=mode)

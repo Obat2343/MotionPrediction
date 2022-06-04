@@ -43,6 +43,10 @@ if len(args.config_file) > 0:
     print('Loaded configration file {}'.format(args.config_file))
     cfg.merge_from_file(args.config_file)
 
+if cfg.SKIP_LEN == 0:
+    print("##############################")
+    print("INFO: cfg.SKIP_LEN is 0. This means that RLBench_grasp dataset is used.")
+
 # define output dirname
 if len(args.output_dirname) == 0:
     dt_now = datetime.datetime.now()
@@ -61,8 +65,6 @@ if os.path.exists(output_dirname):
             raise ValueError("Please specify correct output dir")
         else:
             print('please type y or n')
-
-cfg.freeze()
 
 # define save model path
 model_path = os.path.join(output_dirname, 'model_log')
@@ -148,6 +150,8 @@ max_iter = cfg.BASIC.MAX_ITER
 time_dict = Time_dict()
 load_start = time.time()
 # torch.autograd.set_detect_anomaly(True)
+
+cfg.freeze()
 
 for epoch in range(start_epoch, cfg.BASIC.MAX_EPOCH):
     for iteration, inputs in enumerate(train_dataloader, 1):

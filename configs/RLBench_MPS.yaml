@@ -8,9 +8,9 @@ SCHEDULER:
   STEPLR:
     STEP_SIZE: 15000
 DATASET:
-  NAME: 'RLBench4-sawyer' # HMD, RLBench4
+  NAME: 'RLBench4' # HMD, RLBench4
   RLBENCH:
-    TASK_LIST: ['ReachTarget'] # PickUpCup PutKnifeOnChoppingBoard PutRubbishInBin StackWine TakePlateOffColoredDishRack, ReachTarget, PushButton, CloseBox, PutUmbrellaInUmbrellaStand
+    TASK_LIST: ['StackBlocks'] # PickUpCup PutKnifeOnChoppingBoard PutRubbishInBin StackWine TakePlateOffColoredDishRack, ReachTarget, PushButton, CloseBox, PutUmbrellaInUmbrellaStand
     PATH4: '/home-local/tendon/dataset/RLBench4'
     PATH4_SAWYER: '/home-local/tendon/dataset/RLBench4-sawyer'
 BASIC:

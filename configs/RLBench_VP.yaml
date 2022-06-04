@@ -1,12 +1,12 @@
 PRED_LEN: 1
 PAST_LEN: 1
-SKIP_LEN: 3
+SKIP_LEN: 0
 DATASET:
-  NAME: 'RLBench4-sawyer' # HMD, RLBench
+  NAME: 'RLBench4' # HMD, RLBench
   RLBENCH:
-    TASK_LIST: ['TakePlateOffColoredDishRack'] # PickUpCup, PutKnifeOnChoppingBoard PutRubbishInBin PutUmbrellaInUmbrellaStand StackWine ScoopWithSpatula TakePlateOffColoredDishRack PushButton CloseBox ReachTarget，
-    RANDOM_LEN: 1
-    # PATH4: '/home-local/tendon/dataset/RLBench4'
+    TASK_LIST: ['StackBlocks'] # PickUpCup, PutKnifeOnChoppingBoard PutRubbishInBin PutUmbrellaInUmbrellaStand StackWine ScoopWithSpatula TakePlateOffColoredDishRack PushButton CloseBox ReachTarget，
+    RANDOM_LEN: 5
+    PATH4: '/home-local/tendon/dataset/RLBench4'
 BASIC:
   NUM_GPU: 1
   BATCH_SIZE: 4
@@ -18,7 +18,7 @@ LOSS:
   GP:
     WEIGHT: 0.01
 VIDEO_HOUR:
-  MODE: 'pc'
+  MODE: 'pcf'
   INPUT_DEPTH: False
   INPUT_Z: True
   INPUT_ROTATION: True

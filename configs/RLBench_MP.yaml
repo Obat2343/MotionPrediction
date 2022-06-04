@@ -1,22 +1,24 @@
 MP_MODEL_NAME: 'hourglass' # hourglass, sequence_hourglass
 PRED_LEN: 1
 PAST_LEN: 1
-SKIP_LEN: 3
+SKIP_LEN: 0
 OPTIM:
   MPLR: 0.0001
 SCHEDULER:
   STEPLR:
     STEP_SIZE: 30000
 DATASET:
-  NAME: 'RLBench4-sawyer' # HMD, RLBench, RLBench4-sawyer
+  NAME: 'RLBench4' # HMD, RLBench, RLBench4-sawyer
   RLBENCH:
-    TASK_LIST: ['CloseBox'] # PickUpCup, PutKnifeOnChoppingBoard, PutRubbishInBin, StackWine, TakePlateOffColoredDishRack, PushButton, ReachTarget, ScoopWithSpatula, PutUmbrellaInUmbrellaStand, CloseBox
-    PATH4_SAWYER: '/home-local/tendon/dataset/RLBench4-sawyer'
+    TASK_LIST: ['StackBlocks'] # PickUpCup, PutKnifeOnChoppingBoard, PutRubbishInBin, StackWine, TakePlateOffColoredDishRack, PushButton, ReachTarget, ScoopWithSpatula, PutUmbrellaInUmbrellaStand, CloseBox
+    PATH4: '/home-local/tendon/dataset/RLBench4'
+    # PATH4_SAWYER: '/home-local/tendon/dataset/RLBench4-sawyer'
 BASIC:
   NUM_GPU: 1
   BATCH_SIZE: 4
   WORKERS: 4
   MAX_ITER: 150000
+  MAX_EPOCH: 100000
 LOAD_MODEL: 'all'
 HOURGLASS:
   NUM_BLOCK: 1

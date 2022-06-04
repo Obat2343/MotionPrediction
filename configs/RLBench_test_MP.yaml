@@ -3,3 +3,5 @@ BASIC:
   BATCH_SIZE: 1
 LOAD_MODEL: 'all'
 PRED_LEN: 1
+DATASET:
+  NAME: 'RLBench4' # HMD, RLBench, RLBench4-sawyer

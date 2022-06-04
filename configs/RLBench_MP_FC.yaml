@@ -10,7 +10,8 @@ SCHEDULER:
 DATASET:
   NAME: 'RLBench4' # HMD, RLBench, RLBench4-sawyer
   RLBENCH:
-    TASK_LIST: ['PickUpCup'] # PickUpCup, PutKnifeOnChoppingBoard, PutRubbishInBin, StackWine, TakePlateOffColoredDishRack, PushButton, ReachTarget, ScoopWithSpatula, PutUmbrellaInUmbrellaStand, CloseBox
+    TASK_LIST: ['PutKnifeOnChoppingBoard'] # PickUpCup, PutKnifeOnChoppingBoard, PutRubbishInBin, StackWine, TakePlateOffColoredDishRack, PushButton, ReachTarget, ScoopWithSpatula, PutUmbrellaInUmbrellaStand, CloseBox
+    PATH4: '/home-local/tendon/dataset/RLBench4'
     PATH4_SAWYER: '/home-local/tendon/dataset/RLBench4-sawyer'
 BASIC:
   NUM_GPU: 1
