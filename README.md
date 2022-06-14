@@ -7,14 +7,14 @@ mkdir git
 cd git
 ```
 
-install following app in git directory.
+Install following app in git directory.
 
 - CoppeliaSim (<https://www.coppeliarobotics.com/downloads.html>)
 - Pyrep (<https://github.com/stepjam/PyRep>)
 - RLBench (<https://github.com/stepjam/RLBench>)
 - RotationConinuity (<https://github.com/papagina/RotationContinuity>)
 
-Next, Install requirement
+Next, Install requirements
 
 ```sh
 pip install -r requirements.txt
@@ -23,18 +23,44 @@ pip install -r requirements.txt
 Then, Download the dataset
 
 ```sh
-mkdir dataset 
+mkdir dataset
 ```
-
-google drive link (<https://drive.google.com/file/d/1Nkl53xlV9m87Zm_l93F-T3K6Kd5p4Aca/view?usp=sharing>)
 
 google drive link (<https://drive.google.com/file/d/1LbY_-rg1Mls_YLRUIgPTfk-sQkgVm43M/view?usp=sharing>)
 
-Unzip these data and put them in "dataset" directory as "HMD" and "RLBench3", respectively.
+Unzip and put it in "dataset" directory as "RLBench4".
 
-## How to use
+## How to train model
+
+Training mp with FTIP.
+
+Set PRED_TRAJECTORY: True in yaml file.
+```sh
+cd main
+python train_mp.py --config_file ../config/RLBench_MP.yaml
+```
+
+Training vp with FIGL.
+
+Set VIDEO_HOUR:MODE: 'pcf'
 
 ```sh
 cd main
-python train_mp.py 
+python train_vp.py --config_file ../config/RLBench_VP.yaml
+```
+
+Finally recurrent training with FTIP and FIGL.
+
+```sh
+cd main
+python train_mp.py --config_file ../config/RLBench_MPS.yaml --vp_path path/to/checkpoint_dir --hourglass_path path/to/pth_file
+```
+
+## How to eval model
+
+Please change the configuration in evaluation.py before running the code.
+
+```
+cd eval
+python evaluation.py
 ```
