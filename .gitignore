@@ -1,9 +1,10 @@
 __pycache__
 /env
-/dataset
+/dataset/
 /output
 /git
 /jupyter/.ipynb_checkpoints
 /jupyter/else
 /jupyter
-
+/results/
+/eval/__pycache__

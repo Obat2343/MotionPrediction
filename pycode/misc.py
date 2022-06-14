@@ -562,6 +562,8 @@ def calculate_dtw_pos(pred_action, gt_action):
 
     print("calculate dtw pose")
     dtw_error_xyz, path_xyz = fastdtw(pred_xyz, gt_xyz, dist=euclidean)
+    print(dtw_error_xyz)
+    print(path_xyz)
     error_xyz_list = error_divide_time(pred_xyz, gt_xyz, euclidean, path_xyz)
     mean_dtw_xyz = dtw_error_xyz / len(path_xyz)
 
