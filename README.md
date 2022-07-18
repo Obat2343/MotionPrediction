@@ -20,17 +20,17 @@ Next, Install requirements
 pip install -r requirements.txt
 ```
 
-Then, Download the dataset
+## How to create the dateset
+Please run two code.
 
 ```sh
-mkdir dataset
+cd main
+python create_dataset.py
+python create_trajectory_image.py
 ```
 
-google drive link (<https://drive.google.com/file/d/1LbY_-rg1Mls_YLRUIgPTfk-sQkgVm43M/view?usp=sharing>)
-
-Unzip and put it in "dataset" directory as "RLBench4".
-
 ## How to train model
+Please change the yaml file before running code to change configuration.
 
 Training mp with FTIP.
 
